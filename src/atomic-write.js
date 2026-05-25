@@ -73,6 +73,73 @@ export async function atomicWriteFile(target, bytes) {
   throw lastErr;
 }
 
+/**
+ * Atomically write a batch of {target, bytes} pairs using the same
+ * tmp+rename recipe, but in two phases so that every fsync happens BEFORE
+ * any rename. This gives an observer the guarantee that either all tmp files
+ * are durable on disk before any of them is promoted, or none of the
+ * promotions has begun. Used by callers (e.g. task-store) that mutate two
+ * files in lock-step (the canonical file and its regenerable index).
+ *
+ * Phase 1 (prepare): for each entry, open tmp O_CREAT|O_EXCL, write, fsync, close.
+ * Phase 2 (commit): for each entry, rename(tmp, target) with the same EBUSY retry.
+ *
+ * On any error in phase 1, already-prepared tmps are left on disk for
+ * recovery.sweepAndRecover() to clean up. On any error in phase 2, prior
+ * renames stay (they are independently durable); the failure is rethrown.
+ *
+ * @param {Array<{target: string, bytes: string|Uint8Array}>} entries
+ */
+export async function atomicWriteFiles(entries) {
+  // Phase 1: prepare all tmp files.
+  const prepared = [];
+  for (const { target, bytes } of entries) {
+    const dir = dirname(target);
+    const base = basename(target);
+    const suffix = `${process.pid}-${randomBytes(6).toString('hex')}`;
+    const tmp = join(dir, `${base}.tmp.${suffix}`);
+    const payload = typeof bytes === 'string' ? Buffer.from(bytes, 'utf8') : bytes;
+
+    const fd = openSync(tmp, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
+    try {
+      let written = 0;
+      while (written < payload.length) {
+        written += writeSync(fd, payload, written, payload.length - written);
+      }
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    prepared.push({ tmp, target });
+  }
+
+  // Phase 2: commit all renames.
+  const results = [];
+  for (const { tmp, target } of prepared) {
+    let lastErr;
+    let committed = false;
+    for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
+      try {
+        renameSync(tmp, target);
+        committed = true;
+        break;
+      } catch (err) {
+        lastErr = err;
+        if (err && (err.code === 'EBUSY' || err.code === 'EPERM')) {
+          if (attempt < RETRY_ATTEMPTS - 1) {
+            await sleep(RETRY_BACKOFF_MS);
+            continue;
+          }
+        }
+        throw err;
+      }
+    }
+    if (!committed) throw lastErr;
+    results.push({ tmp, target });
+  }
+  return results;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
