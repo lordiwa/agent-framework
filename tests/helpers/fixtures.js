@@ -3,7 +3,8 @@
 // temp directory; they do NOT touch the real repo's state/ or knowledge/ directories.
 
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /**
  * Build a fresh "framework repo" skeleton at `repoDir`.
@@ -150,19 +151,28 @@ export function hasExactly(actualEntries, expected) {
 
 /**
  * Sentinel file path the production code is supposed to expose. Tests import
- * from non-existent module specifiers so they fail with MODULE_NOT_FOUND in
- * the no-implementation state. Centralize the specifiers here so we can swap
- * the layout once IMPL lands.
+ * via dynamic import(); we resolve each module to an absolute file:// URL so
+ * Vite's dynamic-import resolver doesn't try to interpret variable specifiers
+ * as bare module ids. Each entry stays a fully-qualified URL string.
+ *
+ * When a module does not yet exist on disk, dynamic import still fails with
+ * the right "module not found" surface — Vite reports the missing file by
+ * its resolved file URL — which is still a "right" failure for tests-first.
  */
+const __thisDir = dirname(fileURLToPath(import.meta.url));
+const __srcDir = join(__thisDir, '..', '..', 'src');
+function prodUrl(name) {
+  return pathToFileURL(join(__srcDir, name)).href;
+}
 export const PROD = Object.freeze({
-  lifecycle: '../../src/lifecycle.js',
-  pointer: '../../src/pointer.js',
-  bundle: '../../src/bundle.js',
-  summary: '../../src/summary.js',
-  inspection: '../../src/inspection.js',
-  knowledge: '../../src/knowledge.js',
-  schemas: '../../src/schemas.js',
-  recovery: '../../src/recovery.js',
-  migrate: '../../src/migrate.js',
-  transcript: '../../src/transcript.js',
+  lifecycle: prodUrl('lifecycle.js'),
+  pointer: prodUrl('pointer.js'),
+  bundle: prodUrl('bundle.js'),
+  summary: prodUrl('summary.js'),
+  inspection: prodUrl('inspection.js'),
+  knowledge: prodUrl('knowledge.js'),
+  schemas: prodUrl('schemas.js'),
+  recovery: prodUrl('recovery.js'),
+  migrate: prodUrl('migrate.js'),
+  transcript: prodUrl('transcript.js'),
 });

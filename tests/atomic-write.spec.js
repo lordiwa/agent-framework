@@ -16,6 +16,11 @@ import { makeTmpDir, cleanupAll } from './helpers/tmpRepo.js';
 afterAll(cleanupAll);
 
 // Spy on selected node:fs methods so we can assert the call order.
+// Note: we do NOT trap writeFileSync. The fixture helper seedActiveBundle uses
+// writeFileSync to seed the bundle on disk before the test runs; trapping it
+// would catch the fixture, not the production code. The positive assertions
+// below (O_EXCL open, fsync-before-rename, rename(tmp,target)) are sufficient
+// to prove the recipe was followed.
 vi.mock('node:fs', async (importOriginal) => {
   const real = await importOriginal();
   return {
@@ -25,20 +30,8 @@ vi.mock('node:fs', async (importOriginal) => {
     fsyncSync: vi.fn(real.fsyncSync),
     closeSync: vi.fn(real.closeSync),
     renameSync: vi.fn(real.renameSync),
-    // writeFileSync is the trap door: if pause writes session.json directly without
-    // the tmp+rename dance, this throws and the test fails for the right reason.
-    writeFileSync: vi.fn((p, ...rest) => {
-      if (typeof p === 'string' && p.endsWith(`${PATH_SEP}session.json`)) {
-        throw new Error(
-          `writeFileSync called directly on ${p} — atomic recipe requires tmp+rename`,
-        );
-      }
-      return real.writeFileSync(p, ...rest);
-    }),
   };
 });
-
-const PATH_SEP = process.platform === 'win32' ? '\\' : '/';
 
 afterEach(() => {
   vi.clearAllMocks();

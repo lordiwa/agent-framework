@@ -1,0 +1,68 @@
+{
+  "$id": "https://agentic-framework.local/state/sessions/bundle.schema.json",
+  "title": "BundleSession",
+  "description": "Per-session orchestrator state living inside a portable bundle at state/sessions/<id>/session.json. Per resolved Q #8 the version field is named schema_version (matching the pointer file).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "session_id",
+    "lifecycle_state",
+    "updated_at",
+    "active_task",
+    "workflow_step",
+    "next_action",
+    "handoff_summary"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 2 },
+    "session_id": {
+      "type": "string",
+      "pattern": "^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$"
+    },
+    "lifecycle_state": { "type": "string", "enum": ["active", "paused", "ended"] },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "active_task": {
+      "type": ["string", "null"],
+      "pattern": "^TASK-[0-9]{3,}$"
+    },
+    "workflow_step": {
+      "type": "string",
+      "enum": ["idle", "fetch", "research", "test", "impl", "review", "update"]
+    },
+    "next_action": { "type": ["string", "null"], "maxLength": 300 },
+    "handoff_summary": { "type": "string" },
+    "open_questions": { "type": "array", "default": [], "items": { "type": "string" } },
+    "blockers": { "type": "array", "default": [], "items": { "type": "string" } },
+    "decisions": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "required": ["at", "decision", "rationale"],
+        "additionalProperties": false,
+        "properties": {
+          "at": { "type": "string", "format": "date-time" },
+          "decision": { "type": "string" },
+          "rationale": { "type": "string" }
+        }
+      }
+    },
+    "subagent_results": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "required": ["agent", "at", "summary"],
+        "additionalProperties": false,
+        "properties": {
+          "agent": { "type": "string", "enum": ["researcher", "developer", "reviewer"] },
+          "at": { "type": "string", "format": "date-time" },
+          "summary": { "type": "string", "maxLength": 1000 },
+          "artifacts": { "type": "array", "default": [], "items": { "type": "string" } }
+        }
+      }
+    },
+    "pending_human_confirmation": { "type": ["string", "null"], "default": null }
+  }
+}

@@ -1,80 +1,17 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://agentic-framework.local/state/session.schema.json",
-  "title": "Session",
-  "description": "Resumable Orchestrator session state. Read first on every new chat.",
+  "title": "SessionPointer",
+  "description": "Pointer file. Names the currently-active session bundle under state/sessions/. Read first on every new chat. See tasks/TASK-004.research.md §B for the migration rule. The substantive per-session state lives at state/sessions/<active_session_id>/session.json.",
   "type": "object",
-  "required": ["version", "updated_at", "active_task", "workflow_step", "next_action", "handoff_summary"],
+  "required": ["schema_version", "active_session_id", "updated_at"],
   "additionalProperties": false,
   "properties": {
-    "version": { "const": 1 },
-    "updated_at": { "type": "string", "format": "date-time" },
-    "active_task": {
+    "schema_version": { "const": 2 },
+    "active_session_id": {
       "type": ["string", "null"],
-      "pattern": "^TASK-[0-9]{3,}$",
-      "description": "Key of the task currently in flight, or null when idle."
+      "pattern": "^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$",
+      "description": "ID of the bundle under state/sessions/. Null = no active session (idle between sessions)."
     },
-    "workflow_step": {
-      "type": "string",
-      "enum": ["idle", "fetch", "research", "test", "impl", "review", "update"]
-    },
-    "next_action": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 300,
-      "description": "One-sentence description of the single next thing to do on resume."
-    },
-    "handoff_summary": {
-      "type": "string",
-      "description": "Short paragraph giving a fresh chat the context to continue."
-    },
-    "open_questions": {
-      "type": "array",
-      "default": [],
-      "items": { "type": "string" }
-    },
-    "blockers": {
-      "type": "array",
-      "default": [],
-      "items": { "type": "string" }
-    },
-    "decisions": {
-      "type": "array",
-      "default": [],
-      "items": {
-        "type": "object",
-        "required": ["at", "decision", "rationale"],
-        "additionalProperties": false,
-        "properties": {
-          "at": { "type": "string", "format": "date-time" },
-          "decision": { "type": "string" },
-          "rationale": { "type": "string" }
-        }
-      }
-    },
-    "subagent_results": {
-      "type": "array",
-      "default": [],
-      "items": {
-        "type": "object",
-        "required": ["agent", "at", "summary"],
-        "additionalProperties": false,
-        "properties": {
-          "agent": { "type": "string", "enum": ["researcher", "developer", "reviewer"] },
-          "at": { "type": "string", "format": "date-time" },
-          "summary": { "type": "string", "maxLength": 1000 },
-          "artifacts": {
-            "type": "array",
-            "default": [],
-            "items": { "type": "string", "description": "Paths or refs (commit SHAs, PR URLs, skill paths). Keep raw output OUT of session.json." }
-          }
-        }
-      }
-    },
-    "pending_human_confirmation": {
-      "type": ["string", "null"],
-      "default": null,
-      "description": "If set, the previous session paused awaiting explicit human approval for this action."
-    }
+    "updated_at": { "type": "string", "format": "date-time" }
   }
 }

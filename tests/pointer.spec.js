@@ -115,7 +115,8 @@ describe('AC1 — v1->v2 lift detection rule (research §B)', () => {
     const repoDir = makeTmpDir('af-lift');
     // Pre-seed a bundle directory so liftV1ToV2 sees state/sessions/ non-empty.
     seedActiveBundle(bundlePath(repoDir, makeSessionId()));
-    expect(() => liftV1ToV2({ repoRoot: repoDir, v1Payload: v1Raw }))
-      .toThrow(/sessions.*not.*empty|already.*lifted/i);
+    // liftV1ToV2 is async; use .rejects.toThrow to await the rejection.
+    await expect(liftV1ToV2({ repoRoot: repoDir, v1Payload: v1Raw }))
+      .rejects.toThrow(/sessions.*not.*empty|already.*lifted/i);
   });
 });
