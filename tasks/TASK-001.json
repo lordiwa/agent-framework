@@ -8,15 +8,21 @@
     "Orchestrator can append a comment to a task with author, ISO-8601 timestamp, and markdown body.",
     "`index.json` is regenerated from per-task files after any write."
   ],
-  "status": "todo",
+  "status": "in_progress",
   "priority": "high",
   "labels": ["bootstrap", "harness"],
-  "assignee": null,
+  "assignee": "developer",
   "depends_on": ["TASK-004"],
   "linked_commits": [],
   "linked_prs": [],
-  "comments": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-25T06:00:00Z",
+      "body": "Picked up after TASK-004 closed. No research needed — adapter is thin file I/O on top of `src/atomic-write.js` and the existing `tasks/schema.json`. Workflow: developer writes failing Vitest suite covering all 4 ACs, then implements `src/task-store.js`, then reviewer audits in fresh context."
+    }
+  ],
   "created_at": "2026-05-23T00:00:00Z",
-  "updated_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-05-25T06:00:00Z",
   "jira_key": null
 }
