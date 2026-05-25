@@ -41,7 +41,19 @@ export const pointerSchema = {
 export const bundleStateSchema = {
   $id: 'https://agentic-framework.local/state/sessions/bundle.schema.json',
   title: 'BundleSession',
-  description: 'Per-session orchestrator state living inside a portable bundle.',
+  description:
+    'Per-session orchestrator state living inside a portable bundle at ' +
+    'state/sessions/<id>/session.json. Per resolved Q #8 the version field ' +
+    'is named schema_version (matching the pointer file). The length caps ' +
+    'that lived on next_action and subagent_results[].summary in the v1 ' +
+    'schema were removed: in practice the orchestrator writes multi-paragraph ' +
+    'handoff text and 2-4 paragraph subagent summaries, and capping those ' +
+    'at 300/1000 characters caused the live bundle to fail validation. ' +
+    'subagent_results items also declare two optional fields the orchestrator ' +
+    'uses (`task`: free-text label for the run, `agentId`: SendMessage ' +
+    'continuation handle) — they are typed explicitly rather than waved ' +
+    'through with additionalProperties: true, so the schema still documents ' +
+    'the full payload shape.',
   type: 'object',
   required: [
     'schema_version',
@@ -70,7 +82,12 @@ export const bundleStateSchema = {
       type: 'string',
       enum: ['idle', 'fetch', 'research', 'test', 'impl', 'review', 'update'],
     },
-    next_action: { type: ['string', 'null'], maxLength: 300 },
+    next_action: {
+      type: ['string', 'null'],
+      description:
+        'Multi-paragraph description of the next step on resume. ' +
+        'Intentionally uncapped — see schema description.',
+    },
     handoff_summary: { type: 'string' },
     open_questions: { type: 'array', default: [], items: { type: 'string' } },
     blockers: { type: 'array', default: [], items: { type: 'string' } },
@@ -98,8 +115,25 @@ export const bundleStateSchema = {
         properties: {
           agent: { type: 'string', enum: ['researcher', 'developer', 'reviewer'] },
           at: { type: 'string', format: 'date-time' },
-          summary: { type: 'string', maxLength: 1000 },
+          summary: {
+            type: 'string',
+            description:
+              'Multi-paragraph subagent return summary. ' +
+              'Intentionally uncapped — see schema description.',
+          },
           artifacts: { type: 'array', default: [], items: { type: 'string' } },
+          task: {
+            type: 'string',
+            description:
+              "Optional free-text label naming the run this subagent did " +
+              "(e.g. 'TASK-004 phase 3a implementation').",
+          },
+          agentId: {
+            type: 'string',
+            description:
+              'Optional SendMessage continuation handle for re-spawning ' +
+              'the same subagent in a later turn.',
+          },
         },
       },
     },

@@ -95,9 +95,12 @@ describe('AC10 — knowledge/ is portable to a blank project', () => {
       const raw = readFileSync(join(blank, 'knowledge', 'entries', name), 'utf8');
       const { content, data } = matter(raw);
       expect(data.id).toBeDefined();
-      expect(content).not.toMatch(/[A-Z]:\\\\/);
+      // Same M1 fix as in knowledge-files.spec.js: one `\\` in this literal
+      // is one literal `\` in the regex, which matches a real Windows path.
+      expect(content).not.toMatch(/[A-Z]:\\/);
       expect(content).not.toMatch(/\/Users\//);
       expect(content).not.toMatch(/\/home\//);
+      expect(content).not.toMatch(/\\\\\?\\/);
     }
   });
 });

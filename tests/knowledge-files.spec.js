@@ -23,17 +23,44 @@ const KB_DIR = join(REPO_ROOT, 'knowledge');
 const ENTRIES_DIR = join(KB_DIR, 'entries');
 const SCHEMA_PATH = join(KB_DIR, 'schema.json');
 
+// Deny-list patterns. These compile to regex source that matches REAL paths
+// on disk — a single backslash in the path is one `\\` in this JS literal,
+// which is one `\` in the regex itself. The previous version used `\\\\`,
+// which compiles to `\\` (two literal backslashes) — that matches
+// source-code strings like "C:\\Users" but NOT a real Windows path on disk,
+// so the lint was silently a no-op for real entries. Self-tested below.
 const DENY_PATH_FRAGMENTS = [
-  /[A-Z]:\\\\/,   // Windows drive letter, e.g. C:\
-  /\/Users\//,
-  /\/home\//,
-  /\\\\\?\\\\/,   // \\?\ long-path prefix
+  /[A-Z]:\\/,        // Windows drive letter, e.g. C:\Users\foo
+  /\/Users\//,       // macOS home prefix
+  /\/home\//,        // Linux home prefix
+  /\\\\\?\\/,        // \\?\ long-path prefix on Windows
 ];
 
 function listEntryFiles() {
   if (!existsSync(ENTRIES_DIR)) return [];
   return readdirSync(ENTRIES_DIR).filter((n) => n.endsWith('.md'));
 }
+
+describe('AC8 — deny-list regex is correct (regression for Reviewer M1)', () => {
+  it('deny_list_matches_real_paths', () => {
+    const winPath = 'See C:\\Users\\foo for an example.';
+    const longPath = 'Prefix \\\\?\\C:\\Users\\foo for long paths.';
+    const macPath = 'Look at /Users/foo/bar.';
+    const linuxPath = 'Look at /home/foo/bar.';
+    const clean = 'Refer to the bundle’s session.json (no absolute path).';
+
+    expect(DENY_PATH_FRAGMENTS.some((p) => p.test(winPath)),
+      'win drive-letter path should be caught').toBe(true);
+    expect(DENY_PATH_FRAGMENTS.some((p) => p.test(longPath)),
+      '\\\\?\\ long-path prefix should be caught').toBe(true);
+    expect(DENY_PATH_FRAGMENTS.some((p) => p.test(macPath)),
+      '/Users/ prefix should be caught').toBe(true);
+    expect(DENY_PATH_FRAGMENTS.some((p) => p.test(linuxPath)),
+      '/home/ prefix should be caught').toBe(true);
+    expect(DENY_PATH_FRAGMENTS.some((p) => p.test(clean)),
+      'clean text must not match').toBe(false);
+  });
+});
 
 describe('AC8 — knowledge/ structure', () => {
   it('knowledge_dir_has_required_files', () => {
