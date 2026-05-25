@@ -16,21 +16,35 @@
     "CLAUDE.md and state/README.md are updated to teach the new pointer-file shape so the RESUME-FIRST contract stays valid.",
     "Tests cover: atomic-write crash safety, lifecycle idempotency, cross-machine bundle round-trip (write here → read from a different working dir → verify resume payload), inspection commands, and knowledge-base schema validation."
   ],
-  "status": "todo",
+  "status": "done",
   "priority": "high",
   "labels": ["bootstrap", "harness", "session", "portability", "knowledge-base"],
   "assignee": null,
   "depends_on": [],
-  "linked_commits": [],
+  "linked_commits": [
+    "aee6398",
+    "9b86b91",
+    "305ac4f",
+    "05b2818",
+    "216468c",
+    "6fd27af",
+    "0894227",
+    "d196308"
+  ],
   "linked_prs": [],
   "comments": [
     {
       "author": "orchestrator",
       "at": "2026-05-24T00:00:00Z",
       "body": "Design questions from §I of tasks/TASK-004.research.md resolved with human (2026-05-24):\n\n1. No lockfile at v1. Single-writer assumption stands; revisit if multi-writer becomes a real workflow.\n2. Transcript snapshot captured on every `pause` AND on `end` (overrides researcher recommendation of end-only). Prioritizes cross-machine portability and crash recovery over I/O cost.\n3. Claude Code transcript directory path on Windows is unresolved — Developer must discover during implementation (likely under %APPDATA%\\Claude\\ or equivalent). Open implementation TODO.\n4. KB tokenizer: lowercase + stopword strip + tokens ≥ 3 chars. No Porter stemmer or other dependency.\n5. Researcher *proposes* KB entries (returns drafts in output). Orchestrator writes them to knowledge/entries/ after human approval. Researcher stays read-only on knowledge/.\n6. No bundle retention/GC policy. Old `ended` bundles accumulate in state/sessions/. Future task.\n7. `pending_human_confirmation` is preserved across `pause` (so the next chat sees what was waiting).\n8. Schema version field is named `schema_version` in BOTH the pointer file and inside each bundle's session.json (overrides researcher recommendation to keep `version` on the bundle). The v1→v2 lift renames `version` → `schema_version` as part of the migration. Cost is zero because no production code consumes the v1 field yet.\n9. manifest.json.host = SHA-256 hex of the OS hostname. Deterministic per machine, no PII leak.\n10. v1→v2 lift refuses to run if state/sessions/ already contains entries (treats it as 'someone else already lifted, re-read instead').\n\nFull design context in tasks/TASK-004.research.md."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-25T05:50:00Z",
+      "body": "Closing TASK-004 per CLAUDE.md §Workflow item 7 after Reviewer APPROVE-WITH-FOLLOWUPS and the inline MEDIUM fixes.\n\n**Final state:** npm test reports 32 passed / 0 failed / 32 total in ~5s. The suite covers the 26 numbered cases from research §H plus 6 extras (EBUSY retry, pause-missing-handoff fail-fast, v1-lift refuse-when-non-empty, missing-task-in-destination, deny-list real-path regression, live-state schema validation).\n\n**Acceptance criteria → backing commits:**\n- AC1 (pointer file shape, bundle session.json with schema_version unified): 05b2818 (impl), 216468c (live lift), d196308 (schema relax for real orchestrator writes).\n- AC2 (self-contained bundle): 05b2818 (bundle.js), 216468c (live bundle on disk), exercised by tests/round-trip.spec.js.\n- AC3 (Claude Code transcripts untouched + snapshot on every pause+end): 05b2818 (transcript.js with env var path), 0894227 (auto-discovery of ~/.claude/projects/<encoded>/).\n- AC4 (atomic pause/resume/end with field refresh): 05b2818 (atomic-write.js, lifecycle.js).\n- AC5 (idempotent lifecycle ops): 05b2818 (lifecycle.js noop semantics).\n- AC6 (summary.md with commits from linked_commits): 0894227 (summary.js).\n- AC7 (session.list / session.show read-only): 0894227 (inspection.js).\n- AC8 (knowledge/ exists with no absolute paths in bodies): 0894227 (knowledge/ tree + seed entries), d196308 (regex fix so the deny-list actually catches Windows paths).\n- AC9 (Researcher consults KB before web; orchestrator updates last_seen_at): 0894227 (researcher.md mandatory KB section + knowledge.js#recordKbReuse).\n- AC10 (portable knowledge/ export): 0894227 (knowledge/ is self-contained).\n- AC11 (CLAUDE.md + state/README.md updated for v2 layout): 0894227 (full doc rewrite).\n- AC12 (test coverage spans atomic-write crash safety, idempotency, cross-machine, KB validation): 305ac4f (initial failing suite), with implementations in 05b2818 / 0894227 / d196308 making them pass.\n\n**Reviewer follow-ups:**\n- 2 MEDIUM findings fixed inline (M1 Windows-path regex, M2 schema drift): commit d196308.\n- 5 LOW findings tracked as TASK-008 (polish pass; not blocking).\n- 1 NIT (`knowledge/entries/session-audit-logs-vs-wildcard-gitignore.md` wording calls lifecycle.log 'source of truth' rather than 'audit trail/durable enough') — defer to TASK-008 if it bothers anyone.\n\n**Resolved open implementation TODO from §I question 3:** Claude Code transcript directory path on Windows discovered at `~/.claude/projects/<encoded-repo-path>/` where encoding replaces \\, /, : with -. Defaulted in src/transcript.js with CLAUDE_CODE_TRANSCRIPT_DIR override.\n\n**Live state at close:** state/session.json is the v2 pointer; active session bundle is state/sessions/20260524T000000Z-65fa92c6/ with full handoff_summary, decisions, and subagent_results preserved verbatim from the v1 lift onward. The bundle validates cleanly against state/bundle.schema.json (verified by tests/live-state.spec.js)."
     }
   ],
   "created_at": "2026-05-24T00:00:00Z",
-  "updated_at": "2026-05-24T00:00:00Z",
+  "updated_at": "2026-05-25T05:50:00Z",
   "jira_key": null
 }
