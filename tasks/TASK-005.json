@@ -1,0 +1,22 @@
+{
+  "key": "TASK-005",
+  "title": "Triage and fix 5 moderate npm audit findings",
+  "description": "During TASK-004 setup the Orchestrator ran `npm install` and npm surfaced 5 moderate severity vulnerabilities in transitive dependencies of devDeps (vitest, ajv, ajv-formats, gray-matter). They were intentionally deferred so they didn't bloat the TASK-004 implementation diff. Triage now: run `npm audit`, classify each finding (false positive vs. real path-to-exploit in our test runtime), apply `npm audit fix` where safe, document any breaking changes that would require devDeps bumps, and rerun `npm test` to confirm no regression. Not deploy-relevant — this is a tooling-only repo — but worth resolving before more devDeps land.",
+  "acceptance_criteria": [
+    "`npm audit` reports 0 moderate-or-higher findings (or each remaining one is documented as accepted with an explicit rationale in a NOTES section in this ticket).",
+    "`npm test` runs and the test pass/fail count matches the count immediately before the audit fix (no regressions introduced).",
+    "Any devDep version bumps required by the fix are documented in the commit body with the version delta and a one-line reason.",
+    "package.json and package-lock.json are both committed in the same commit so they stay in sync."
+  ],
+  "status": "todo",
+  "priority": "low",
+  "labels": ["chore", "dependencies", "security"],
+  "assignee": null,
+  "depends_on": ["TASK-004"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [],
+  "created_at": "2026-05-24T00:00:00Z",
+  "updated_at": "2026-05-24T00:00:00Z",
+  "jira_key": null
+}
