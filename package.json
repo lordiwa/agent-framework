@@ -1,0 +1,20 @@
+{
+  "name": "agentic-framework",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Multi-agent software-engineering harness built on the Claude Agent SDK.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "gray-matter": "^4.0.3",
+    "vitest": "^2.1.9"
+  }
+}
