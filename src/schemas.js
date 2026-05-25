@@ -2,9 +2,21 @@
 // JSON Schemas as JS objects, for direct import + ajv compilation.
 // Also re-exported from this single module so tests can `import { ... } from 'schemas.js'`
 // without juggling JSON imports / assertion syntax.
+//
+// Note on the two independent schema_version dimensions:
+//   * The bundle-STATE version is `2`. It lives in BOTH `state/session.json`
+//     (the pointer file) and inside each bundle's `session.json`. This
+//     tracks the shape of the orchestrator-state payload.
+//   * The bundle-LAYOUT version is `1`. It lives in `manifest.json` and
+//     tracks the directory structure of a bundle (what files are present:
+//     session.json, manifest.json, lifecycle.log, summary.md, etc.).
+// They are independent on purpose: the state payload can evolve without
+// renaming the bundle's files, and the bundle layout can grow new optional
+// files without invalidating older state payloads. Do not try to unify
+// them — different change axes deserve different version numbers.
 
 export const pointerSchema = {
-  $id:'https://agentic-framework.local/state/session.schema.json',
+  $id: 'https://agentic-framework.local/state/session.schema.json',
   title: 'SessionPointer',
   description:
     'Pointer file. Names the currently-active session bundle under state/sessions/. Read first on every new chat.',
@@ -27,7 +39,7 @@ export const pointerSchema = {
 // version field is named schema_version (matching the pointer), not version.
 // Field set: every v1 field, plus session_id, plus lifecycle_state.
 export const bundleStateSchema = {
-  $id:'https://agentic-framework.local/state/sessions/bundle.schema.json',
+  $id: 'https://agentic-framework.local/state/sessions/bundle.schema.json',
   title: 'BundleSession',
   description: 'Per-session orchestrator state living inside a portable bundle.',
   type: 'object',
@@ -99,7 +111,7 @@ export const bundleStateSchema = {
 // is independent of the bundle session.schema_version; the manifest tracks the
 // bundle-layout version, currently 1.
 export const manifestSchema = {
-  $id:'https://agentic-framework.local/state/sessions/manifest.schema.json',
+  $id: 'https://agentic-framework.local/state/sessions/manifest.schema.json',
   title: 'BundleManifest',
   type: 'object',
   required: ['session_id', 'schema_version', 'created_at', 'host', 'snapshot_transcript'],

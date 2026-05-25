@@ -4,15 +4,28 @@
 // Per resolved Q #2: when a session was started with snapshotTranscript=true,
 // we capture the transcript on EVERY pause and on end. Not opt-in per-call.
 //
-// Per resolved Q #3: the actual transcript directory on Windows is not yet
-// known. We read it from env var CLAUDE_CODE_TRANSCRIPT_DIR (see test-runtime
-// proposal §8 Concerns #3). When unset, snapshot is a no-op (the bundle still
-// works; it just won't carry verbatim history across machines).
+// Per resolved Q #3: the Claude Code transcript directory on Windows was
+// discovered empirically in phase 3b. Layout under the user's home dir:
+//
+//   ~/.claude/projects/<encoded-project-path>/
+//     <session-uuid>.jsonl                       # main chat transcript(s)
+//     <session-uuid>/subagents/agent-<id>.jsonl  # subagent transcripts
+//
+// Where <encoded-project-path> is the absolute path to the project root with
+// path separators (`\` and `:`) replaced by `-`. Example for the framework:
+//   C:\Users\srpar\OneDrive\Documents\agentic-framework
+//   → C--Users-srpar-OneDrive-Documents-agentic-framework
+//
+// resolveTranscriptDir prefers (1) the CLAUDE_CODE_TRANSCRIPT_DIR env var when
+// set, (2) the discovered ~/.claude/projects/<encoded(repoRoot)>/ path when it
+// exists, (3) null when neither is available. Snapshot is then a no-op when
+// null — the bundle still works, it just doesn't carry verbatim history.
 
 import {
   existsSync, mkdirSync, readdirSync, readFileSync, copyFileSync, statSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 
 import { atomicWriteFile } from './atomic-write.js';
@@ -21,12 +34,35 @@ import {
 } from './bundle.js';
 
 /**
- * Resolve the configured Claude Code transcript directory, if any.
- * Returns null when CLAUDE_CODE_TRANSCRIPT_DIR is unset.
+ * Compute the encoded project-path component used under ~/.claude/projects/.
+ * Replaces backslashes, forward slashes, and colons with dashes.
+ *
+ * @param {string} repoRoot - absolute path to the project root
+ * @returns {string} encoded directory name
  */
-export function resolveTranscriptDir() {
-  const p = process.env.CLAUDE_CODE_TRANSCRIPT_DIR;
-  return p && p.length > 0 ? p : null;
+export function encodeProjectPath(repoRoot) {
+  const abs = resolve(repoRoot);
+  return abs.replace(/[\\/:]+/g, '-');
+}
+
+/**
+ * Resolve the Claude Code transcript directory.
+ * Precedence:
+ *   1. CLAUDE_CODE_TRANSCRIPT_DIR env var (override; useful in tests).
+ *   2. ~/.claude/projects/<encoded(repoRoot)>/  when it exists.
+ *   3. null.
+ *
+ * @param {{ repoRoot?: string }} [opts]
+ * @returns {string|null}
+ */
+export function resolveTranscriptDir(opts = {}) {
+  const env = process.env.CLAUDE_CODE_TRANSCRIPT_DIR;
+  if (env && env.length > 0) return env;
+  if (opts.repoRoot) {
+    const candidate = join(homedir(), '.claude', 'projects', encodeProjectPath(opts.repoRoot));
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
 }
 
 /**
@@ -36,7 +72,7 @@ export function resolveTranscriptDir() {
  * @returns {Promise<Array<{path: string, sha256: string, exists_at_capture: boolean}>>}
  */
 export async function captureTranscriptRefs({ repoRoot, sessionId }) {
-  const src = resolveTranscriptDir();
+  const src = resolveTranscriptDir({ repoRoot });
   if (!src || !existsSync(src)) {
     return [];
   }
@@ -73,7 +109,7 @@ export async function captureTranscriptRefs({ repoRoot, sessionId }) {
  * Does NOT touch the source files.
  */
 export async function snapshotTranscripts({ repoRoot, sessionId }) {
-  const src = resolveTranscriptDir();
+  const src = resolveTranscriptDir({ repoRoot });
   if (!src || !existsSync(src)) {
     return { copied: 0, skipped: 'no_transcript_dir' };
   }

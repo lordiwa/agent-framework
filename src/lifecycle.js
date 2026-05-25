@@ -13,6 +13,7 @@ import {
   writeBundleSession, writeManifest, makeManifest, appendLifecycleLog,
 } from './bundle.js';
 import { captureTranscriptRefs, snapshotTranscripts } from './transcript.js';
+import { generateSummary } from './summary.js';
 
 /* -------------------------------------------------------------------------- */
 /*                                   start                                    */
@@ -233,16 +234,16 @@ export async function endSession({ repoRoot, handoffSummary }) {
   // Always snapshot on end if opted in.
   await maybeSnapshot(repoRoot, sessionId);
 
-  // summary.md generation is phase 3b. For phase 3a we still need *something*
-  // at summary.md so the "ended session" state is detectable on disk. Write
-  // a minimal placeholder; the phase-3b summary module will overwrite it
-  // with the real content during the same `end` call once that module ships.
-  // The end_on_ended_is_noop test checks summary.md mtime stability — that
-  // only triggers on the second end (which is a noop), so this initial write
-  // is fine.
+  // summary.md is generated from the bundle's session.json + lifecycle.log
+  // and from each touched task's linked_commits. generateSummary is pure;
+  // we do the actual write here so endSession owns the file-system side
+  // effects. Idempotency: end-on-ended returns above as a noop, so this
+  // path runs at most once per session — summary.md mtime is stable across
+  // any subsequent noop end calls.
+  const summaryContent = generateSummary({ repoRoot, sessionId });
   writeFileSync(
     join(bundleDirFor(repoRoot, sessionId), 'summary.md'),
-    `# Session ${sessionId}\n\n(summary generation is phase 3b)\n`,
+    summaryContent,
     'utf8',
   );
 

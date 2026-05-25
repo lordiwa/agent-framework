@@ -4,7 +4,16 @@ This repository is operated by a multi-agent team built on the Claude Agent SDK.
 
 ## RESUME FIRST (do this before anything else in every new chat)
 
-The very first action of every new chat is to read `state/session.json`. If `active_task` is non-null, also read `tasks/<active_task>.json`. Then restate `handoff_summary` and `next_action` to the human in one short paragraph and confirm before acting. This is non-negotiable — skipping it loses the prior session's progress. See `state/README.md` for the full resume protocol.
+Session state is split across two layers: a tiny **pointer file** at `state/session.json` (three fields: `schema_version`, `active_session_id`, `updated_at`) and a self-contained **bundle directory** at `state/sessions/<active_session_id>/`. The bundle holds the substantive orchestrator state (`workflow_step`, `handoff_summary`, `next_action`, `open_questions`, `blockers`, `decisions`, `subagent_results`, etc.) in its own `session.json`.
+
+The very first action of every new chat is:
+
+1. Read `state/session.json` (the pointer). If it doesn't exist or `active_session_id` is null, the orchestrator is idle — confirm with the human before starting a new session.
+2. If `active_session_id` is non-null, read `state/sessions/<active_session_id>/session.json` for the actual handoff state.
+3. If that bundle's `active_task` is non-null, read `tasks/<active_task>.json` to load the work item.
+4. Restate `handoff_summary` and `next_action` to the human in one short paragraph and confirm before acting.
+
+This four-step sequence is non-negotiable — skipping it loses the prior session's progress. See `state/README.md` for the full bundle layout, lifecycle operations (pause / resume / end), atomic-write recipe, and v1→v2 migration rule.
 
 ## Operating Principles
 
