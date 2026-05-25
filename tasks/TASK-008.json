@@ -1,0 +1,22 @@
+{
+  "key": "TASK-008",
+  "title": "Polish pass: 5 LOW findings from TASK-004 review",
+  "description": "The Reviewer's audit of TASK-004 (see Reviewer's review output, captured in tasks/TASK-004.review.md if extracted) returned APPROVE-WITH-FOLLOWUPS, two MEDIUM findings (fixed inline before closing TASK-004), and five LOW findings deferred to this ticket:\n\n1. **Researcher Write tool grant is unscoped**: `.claude/agents/researcher.md` frontmatter declares `Write` as a tool grant without a path scope, while the body prose says \"your only writes are to `.claude/skills/`\" and \"you never modify `knowledge/` files yourself\". The Claude Agent SDK doesn't enforce subpath restrictions. Pre-existing surface; not introduced by TASK-004 but magnified by the new mandatory KB-lookup section. Consider an Orchestrator-side guardrail that rejects researcher tool calls writing outside `.claude/skills/`.\n\n2. **`src/lifecycle.js#loadActiveBundleWithFallback` ambiguous error**: when the pointer is null, falls back to \"most recently modified bundle by `session.json` mtime\" so `pause` on an already-ended session surfaces `E_INVALID_TRANSITION` instead of `E_NO_ACTIVE_SESSION`. Subtle side effect: if a chat is truly idle (pointer cleared by prior `end`) and user calls `pauseSession` thinking they're starting fresh, code silently targets most-recent ended bundle and rejects with `E_INVALID_TRANSITION` rather than a clearer \"no active session\" error. Limit fallback to the case where most-recent bundle's `lifecycle_state === 'ended'` and surface a distinct error code for the no-bundle case.\n\n3. **`src/lifecycle.js#endSession` summary.md not atomic**: `summary.md` is written via plain `writeFileSync`, not the atomic helper used everywhere else. Low risk (runs once per session, informational file), but inconsistent with the \"all bundle writes are atomic\" framing. Route through `atomicWriteFile`.\n\n4. **`src/migrate.js` comment drift**: research §B describes the lift as preserving the v1 payload \"verbatim with an added `session_id` field\"; the implementation also injects `lifecycle_state: 'active'` and defaults `open_questions`/`blockers`/`decisions`/`subagent_results`/`pending_human_confirmation` if absent. Sensible defaulting, but a one-line comment in `src/migrate.js` documenting the deliberate departure from \"verbatim\" would help future readers.\n\n5. **`tests/lifecycle.spec.js:174` regex too loose**: assertion `expect(caught.code).toMatch(/^(?:E_LIFECYCLE|E_ENDED_NO_PAUSE|E_INVALID_TRANSITION)/)` accepts three error-code prefixes; implementation emits exactly one (`E_INVALID_TRANSITION`). Tighten to the single code to catch accidental error-code drift.",
+  "acceptance_criteria": [
+    "All 5 LOW items are either implemented or explicitly closed-as-wontfix with rationale in this ticket's comments.",
+    "`npm test` continues to report 30/30 passing (or higher count if new tests are added). No regressions in the existing suite.",
+    "Each fix that lands has a corresponding test where it makes sense — particularly item #2 (distinct error codes for the no-bundle vs. ended-bundle cases) and item #5 (the tightened regex itself acts as the test).",
+    "Item #1 (researcher Write scope) is the largest of the five and may need its own Orchestrator-side change beyond .claude/agents/. If the work scope grows past ~100 lines, split it into a separate ticket and link from here."
+  ],
+  "status": "todo",
+  "priority": "low",
+  "labels": ["chore", "polish", "debt", "task-004-followup"],
+  "assignee": null,
+  "depends_on": ["TASK-004"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [],
+  "created_at": "2026-05-25T05:00:00Z",
+  "updated_at": "2026-05-25T05:00:00Z",
+  "jira_key": null
+}
