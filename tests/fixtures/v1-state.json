@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "updated_at": "2026-05-23T18:00:00Z",
+  "active_task": "TASK-004",
+  "workflow_step": "research",
+  "next_action": "Spawn researcher subagent.",
+  "handoff_summary": "Legacy v1 single-file state fixture used to exercise the v1->v2 lift in pointer.spec.js.",
+  "open_questions": [],
+  "blockers": [],
+  "decisions": [],
+  "subagent_results": [],
+  "pending_human_confirmation": null
+}
