@@ -7,21 +7,29 @@
     "The new task's key is exactly one greater than the highest existing TASK-NNN file.",
     "`tasks/index.json` is updated atomically (write to temp file, rename) so a crash mid-write cannot corrupt the index."
   ],
-  "status": "in_progress",
+  "status": "done",
   "priority": "medium",
   "labels": ["bootstrap", "ergonomics"],
   "assignee": "developer",
   "depends_on": ["TASK-001"],
-  "linked_commits": [],
+  "linked_commits": [
+    "675294e",
+    "00e7153"
+  ],
   "linked_prs": [],
   "comments": [
     {
       "author": "orchestrator",
       "at": "2026-05-25T06:45:00Z",
       "body": "Picked up after TASK-001 closed. Design: programmatic `createTask({...})` exported from `src/task-store.js` (reuses the existing `readAllTasks` + `atomicWriteFiles` + `buildIndexBytes` helpers — index write is already atomic via the two-phase primitive landed in TASK-001) plus a thin CLI wrapper at `bin/new-task.js` with `node:readline` for TTY prompts and flag-based non-interactive mode. Prompter is injectable so tests run with no I/O. Workflow: developer writes failing Vitest suite covering next-key derivation, schema conformance, atomic index write, and the CLI prompter loop, then implements both layers, then reviewer in fresh context."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-25T07:30:00Z",
+      "body": "Closed. Workflow: tests-first commit `675294e` (15 failing specs across `tests/new-task.spec.js` + `tests/new-task-cli.spec.js`, all failing for the right reasons — 11 missing-export, 4 MODULE_NOT_FOUND on bin/). Impl commit `00e7153` (`createTask` + `deriveNextKey` added privately to `src/task-store.js` per phase-1 dev's option-(a) decision — no helper-promotion — plus new `bin/new-task.js` with injectable prompter and `pathToFileURL`-based Windows-safe executable detection). One authorized scope expansion documented in the impl commit body: phase-1 test imported default `Ajv` (draft-07) but `tasks/schema.json` declares draft-2020-12, so the schema-conformance test couldn't compile until the import was swapped to `ajv/dist/2020.js`. Orchestrator-run shell smoke from `/tmp/smoke-task-002/` produced a valid `TASK-001.json` (key derived from empty store) + regenerated `index.json`, both timestamps identical at `2026-05-25T06:12:38.329Z`, all schema-required fields present, then cleaned. Reviewer in fresh context returned **APPROVE-WITH-FOLLOWUPS** (0 HIGH, 1 MEDIUM, 2 LOW, 1 NIT); independently ajv2020-validated a `createTask` output and confirmed all 58/58 vitest specs green. AC coverage map: AC1 (valid JSON / schema conformance) — `created_task_conforms_to_schema`, `defaults_applied_when_omitted`, `created_at_and_updated_at_use_injected_now`, `rejects_empty_acceptance_criteria`, `rejects_invalid_priority`, plus CLI-side `interactive_prompts_when_no_args`; AC2 (next-key derivation) — `next_key_is_highest_plus_one`, `next_key_with_three_digit_padding`, `next_key_in_empty_store`, `next_key_ignores_non_task_files`; AC3 (atomic index write) — `writes_go_through_atomic_write` (asserts ≥2 fsync calls and `max(fsync.callOrder) < min(rename.callOrder)` across both targets). MEDIUM finding (`buildIndexBytes`/`listTodos` lexical sort — `TASK-1000` collates before `TASK-999`) is pre-existing from TASK-001 and was rolled into **TASK-009** as AC6 with a numeric-comparator fix. The 2 LOWs (CLI AC-count coercion to 1, title whitespace not trimmed) are minor ergonomic gaps; deferred without a follow-up ticket since they don't violate any spec and the schema-side title `minLength:1` already accepts whitespace by design."
     }
   ],
   "created_at": "2026-05-23T00:00:00Z",
-  "updated_at": "2026-05-25T06:45:00Z",
+  "updated_at": "2026-05-25T07:30:00Z",
   "jira_key": null
 }

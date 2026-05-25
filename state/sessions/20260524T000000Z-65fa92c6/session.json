@@ -69,6 +69,16 @@
       "at": "2026-05-25T06:30:00Z",
       "decision": "TASK-001 closed APPROVE on the first review pass. 5 LOWs spun out as TASK-009 (hardening) rather than fixed in-band.",
       "rationale": "Reviewer verdict was clean (0 HIGH, 0 MEDIUM, 5 LOW, 2 NIT) and independently re-validated comment shape via ajv round-trip against tasks/schema.json. All 5 LOWs are real edge cases (partial-commit window, TOCTOU, no tmp recovery for tasks/, listTodos ignores depends_on, no defensive ajv on read) but none block correctness today. Spinning them into a dedicated follow-up keeps the TASK-001 close clean and gives the next operator an unambiguous punch list. TASK-008 (TASK-004 LOWs) and TASK-009 (TASK-001 LOWs) can be batched in a single hardening sprint when the team is ready."
+    },
+    {
+      "at": "2026-05-25T07:15:00Z",
+      "decision": "Orchestrator authorized the impl developer to fix a one-line `import Ajv from 'ajv'` -> `'ajv/dist/2020.js'` test infrastructure bug inside the TASK-002 IMPL commit, overriding the standard 'do not edit tests during impl' rule.",
+      "rationale": "Phase-1 dev's `created_task_conforms_to_schema` test imported default Ajv (draft-07-only metaschema) against `tasks/schema.json` which declares draft-2020-12. The test couldn't compile the schema regardless of input data — pure test-infra defect with the production code being correct. Three other test files (live-state, pointer, knowledge-files) use plain Ajv and pass because their target schemas omit `$schema` and Ajv defaults to draft-07 implicitly. Bouncing back to phase-1 dev would have been process theater (same single-line fix either way). Pragmatic call: authorize in-band, require the impl commit body to document the override explicitly so the reviewer can argue it. Reviewer confirmed the documentation, the fix as one line, no assertion weakening, and zero regression in other Ajv consumers."
+    },
+    {
+      "at": "2026-05-25T07:30:00Z",
+      "decision": "TASK-002 closed APPROVE-WITH-FOLLOWUPS. MEDIUM lexical-sort finding rolled into TASK-009 (AC6) rather than spawning a new ticket.",
+      "rationale": "Reviewer flagged that `buildIndexBytes`/`listTodos` use string-compare on the key, so `TASK-1000` lexically sorts before `TASK-999` once a 4-digit key exists. Real bug, but pre-existing from TASK-001 (TASK-002's padding test only checked the new key string, not its index position) and only manifests when a 4-digit key lands in the store — which won't happen for hundreds of tickets. Same module, same fix profile (one-line comparator swap on two lines) as the other 5 task-store hardening items already in TASK-009. Rolling in as AC6 keeps the hardening work in one bucket rather than fragmenting it across two follow-up tickets. Two LOWs (CLI AC-count silent coercion, title-whitespace not trimmed) declined without a follow-up — both are minor ergonomic gaps that don't violate any spec, and `tasks/schema.json`'s title minLength is 1 which already accepts whitespace by design."
     }
   ],
   "subagent_results": [
@@ -145,6 +155,39 @@
       "agentId": "aea078e9eaabde612"
     },
     {
+      "at": "2026-05-25T07:05:00Z",
+      "agent": "developer",
+      "task": "TASK-002 failing test suite (tests-first phase)",
+      "artifacts": [
+        "tests/new-task.spec.js",
+        "tests/new-task-cli.spec.js",
+        "tests/fixtures/tasks/TASK-999.json",
+        "tests/helpers/fixtures.js"
+      ],
+      "summary": "Wrote 15 failing specs across two new files: 11 for the createTask core (key derivation, schema conformance via ajv, default application, input validation, atomic write ordering) + 4 for the runCli CLI wrapper (flag parsing, interactive prompts, empty-title re-prompt, flag+prompt mix). Added one PROD-map entry `newTaskCli` via a new `binUrl` helper that mirrors the existing `prodUrl` pattern. Created TASK-999 fixture for the 999->1000 padding-boundary test. Picked option (a) for createTask location: stays inside src/task-store.js as a single new export rather than spinning a new src/new-task.js — rationale: only in-repo caller is the CLI itself, so promoting readAllTasks/buildIndexBytes/tasksDir to public exports just to feed one neighbor file is unjustified API widening. After npm test: 15 new failures (11 `TypeError: createTask is not a function`, 4 `Failed to load url .../bin/new-task.js`) + 43 pre-existing pass. Commit 675294e.",
+      "agentId": "ae051a197a92b95f6"
+    },
+    {
+      "at": "2026-05-25T07:20:00Z",
+      "agent": "developer",
+      "task": "TASK-002 implementation (impl phase, with one authorized test edit)",
+      "artifacts": [
+        "src/task-store.js",
+        "bin/new-task.js",
+        "tests/new-task.spec.js"
+      ],
+      "summary": "Implemented `createTask` + `deriveNextKey` privately inside src/task-store.js (no helper promotion, per phase-1 decision). Added bin/new-task.js with `runCli` export, injectable prompter, `node:readline/promises` for the real TTY path, and `pathToFileURL`-based executable detection so Windows backslashes don't break the gate. Initially blocked on a test failure: `created_task_conforms_to_schema` couldn't compile `tasks/schema.json` because the test imported default Ajv (draft-07) but the schema declares draft-2020-12. Surfaced the blocker rather than editing the test unilaterally; orchestrator authorized a one-line import swap to `ajv/dist/2020.js` and required the impl commit body to document the override. Commit 00e7153 (3 files, 224 insertions). All 58 specs pass in ~3.8s. Orchestrator-run shell smoke from /tmp produced a valid TASK-001.json with all schema-required fields and identical created_at/updated_at timestamps. Surfaced one out-of-scope concern: buildIndexBytes uses lexical sort on the full key string, so TASK-1000 collates before TASK-999 — pre-existing from TASK-001; rolled into TASK-009 AC6.",
+      "agentId": "aa9dcd3775b1af9f9"
+    },
+    {
+      "at": "2026-05-25T07:25:00Z",
+      "agent": "reviewer",
+      "task": "TASK-002 independent audit (fresh context)",
+      "artifacts": [],
+      "summary": "Verdict: **APPROVE-WITH-FOLLOWUPS**. 0 HIGH, 1 MEDIUM, 2 LOW, 1 NIT. Independently re-ran npm test from clean state: 58/58 pass, ~3.6s, no flakes. Independently ajv2020-validated a createTask output against tasks/schema.json: VALID:true, all 8 required fields present, no additionalProperties leaks, comments/jira_key/assignee defaults correct. Verified the authorized one-line test edit is genuinely one line, doesn't weaken assertions, the schema-conformance test now actually validates the on-disk file, and other Ajv consumers (live-state, pointer, knowledge-files) still pass. Confirmed validation precedes disk I/O in createTask (line 190-199 before 223-227), single `now()` call reused for both timestamps, single net-new export (createTask), Windows-safe `pathToFileURL` for executable detection, single atomicWriteFiles call (not two sequential atomicWriteFile). The MEDIUM finding — lexical sort in buildIndexBytes/listTodos mis-orders TASK-1000 against TASK-999 — is real but pre-existing from TASK-001 and only manifests at 4-digit keys; rolled into TASK-009 AC6. The 2 LOWs (CLI AC-count silent coercion to 1, title-whitespace not trimmed) are minor ergonomic gaps deferred without follow-up since the schema already accepts whitespace via minLength:1.",
+      "agentId": "accd624ddeab6a2b3"
+    },
+    {
       "at": "2026-05-25T06:25:00Z",
       "agent": "reviewer",
       "task": "TASK-001 independent audit (fresh context)",
@@ -197,10 +240,10 @@
       "agentId": "afc8241302c944868"
     }
   ],
-  "pending_human_confirmation": null,
-  "updated_at": "2026-05-25T06:45:00Z",
-  "active_task": "TASK-002",
-  "workflow_step": "test",
-  "next_action": "Spawn developer subagent (fresh context) to write the failing Vitest suite for TASK-002. Design fixed by Orchestrator: programmatic `createTask({...})` exported from src/task-store.js reusing readAllTasks + buildIndexBytes + atomicWriteFiles, plus a thin CLI at bin/new-task.js with injectable prompter. Tests cover: next-key derivation (TASK-NNN+1 from highest existing), schema conformance (ajv against tasks/schema.json), atomic index write (vi.mock node:fs ordering), prompter loop (re-asks on empty title, parses semicolon-separated ACs, etc), and the no-args TTY path via a fake prompter. No production code in the test commit.",
-  "handoff_summary": "TASK-001 (wire local task store into the Orchestrator workflow) is **closed**. The repo now has a fully-tested task-store adapter at src/task-store.js exposing listTodos / transitionStatus / appendComment, all routed through src/atomic-write.js. A new additive primitive `atomicWriteFiles` (two-phase commit batched writes — open+write+fsync all tmps first, then rename all) was added to src/atomic-write.js to satisfy the test's max(fsync) < min(rename) syscall-ordering invariant; the four existing single-file callers (src/bundle.js ×2, src/knowledge.js, src/pointer.js, src/transcript.js) are unchanged. Test suite: 43/43 vitest passing in ~3.3s (11 new task-store specs + 32 pre-existing). Reviewer ran in a fresh context, verdict APPROVE (0 HIGH, 0 MEDIUM, 5 LOW, 2 NIT), independently round-tripped an appendComment payload through ajv against tasks/schema.json (VALID). The 5 LOW reviewer findings are captured as TASK-009 (hardening). Git history added 4 commits this session: 91f7a6c chore(state) TASK-001 in_progress, 5619336 test failing suite, 9bfb956 feat impl, plus this pending close commit. Outstanding tickets snapshot: TASK-002 (helper script, medium), TASK-003 (Jira migration, medium, blocked on MCP creds), TASK-005 (npm audit, low), TASK-008 (TASK-004 polish, low), TASK-009 (TASK-001 hardening, low). State persistence remains bundle-based — state/session.json is the v2 pointer, the live bundle is state/sessions/20260524T000000Z-65fa92c6/."
+  "pending_human_confirmation": "Awaiting next ticket. Forward-progress is TASK-003 (Jira migration command) but it's blocked on MCP credentials (ATLASSIAN_SITE_URL, ATLASSIAN_USER_EMAIL, ATLASSIAN_API_TOKEN, GITHUB_PERSONAL_ACCESS_TOKEN). Unblocked alternatives: TASK-005 (npm audit triage), TASK-008 (TASK-004 polish, 5 LOWs), TASK-009 (task-store hardening, 6 ACs covering both TASK-001 LOWs and the MEDIUM lexical-sort bug discovered during TASK-002 review).",
+  "updated_at": "2026-05-25T07:30:00Z",
+  "active_task": null,
+  "workflow_step": "idle",
+  "next_action": "TASK-002 closed (status=done, 2 commits linked: 675294e test, 00e7153 impl; reviewer APPROVE-WITH-FOLLOWUPS). MEDIUM lexical-sort finding rolled into TASK-009 AC6. Workflow returns to idle. Next-ticket candidates: TASK-005 (npm audit, low, quick win), TASK-008 + TASK-009 (hardening batch, low), or TASK-003 (Jira migration, blocked on MCP credentials).",
+  "handoff_summary": "TASK-002 (new-task helper script) is **closed**. The repo now scaffolds new tasks via `node bin/new-task.js [--flags] [or prompts]`, with the programmatic `createTask({...})` core exported from src/task-store.js (5 net lines of new public API) and a thin CLI wrapper at bin/new-task.js. Reviewer verdict APPROVE-WITH-FOLLOWUPS in fresh context — 0 HIGH, 1 MEDIUM (pre-existing lexical-sort bug rolled into TASK-009 AC6), 2 LOW (declined without follow-up), 1 NIT. 58/58 vitest specs passing in ~3.8s. One authorized scope expansion documented in commit body of 00e7153: phase-1 test imported default Ajv (draft-07) against a draft-2020-12 schema; orchestrator approved a one-line `ajv/dist/2020.js` swap inside the impl commit rather than bouncing back to phase-1 dev — pure test-infra defect, no assertion weakening, no production-code bug. Orchestrator ran the shell smoke test the impl dev couldn't (Bash policy denial): from /tmp/smoke-task-002/, the CLI produced a valid TASK-001.json + regenerated index.json, all schema-required fields, identical created_at/updated_at timestamps. State persistence remains bundle-based — state/session.json is the v2 pointer, the live bundle is state/sessions/20260524T000000Z-65fa92c6/. Open tickets snapshot: TASK-003 (Jira migration, medium, blocked on MCP creds), TASK-005 (npm audit, low), TASK-008 (TASK-004 polish, low, 5 ACs), TASK-009 (task-store hardening, low, 6 ACs — includes the lexical-sort fix). | Earlier this session: TASK-001 (wire local task store) closed cleanly with reviewer APPROVE; introduced src/task-store.js with listTodos/transitionStatus/appendComment and the new additive `atomicWriteFiles` two-phase primitive in src/atomic-write.js. The repo now has a fully-tested task-store adapter at src/task-store.js exposing listTodos / transitionStatus / appendComment, all routed through src/atomic-write.js. A new additive primitive `atomicWriteFiles` (two-phase commit batched writes — open+write+fsync all tmps first, then rename all) was added to src/atomic-write.js to satisfy the test's max(fsync) < min(rename) syscall-ordering invariant; the four existing single-file callers (src/bundle.js ×2, src/knowledge.js, src/pointer.js, src/transcript.js) are unchanged. Test suite: 43/43 vitest passing in ~3.3s (11 new task-store specs + 32 pre-existing). Reviewer ran in a fresh context, verdict APPROVE (0 HIGH, 0 MEDIUM, 5 LOW, 2 NIT), independently round-tripped an appendComment payload through ajv against tasks/schema.json (VALID). The 5 LOW reviewer findings are captured as TASK-009 (hardening). Git history added 4 commits this session: 91f7a6c chore(state) TASK-001 in_progress, 5619336 test failing suite, 9bfb956 feat impl, plus this pending close commit. Outstanding tickets snapshot: TASK-002 (helper script, medium), TASK-003 (Jira migration, medium, blocked on MCP creds), TASK-005 (npm audit, low), TASK-008 (TASK-004 polish, low), TASK-009 (TASK-001 hardening, low). State persistence remains bundle-based — state/session.json is the v2 pointer, the live bundle is state/sessions/20260524T000000Z-65fa92c6/."
 }
