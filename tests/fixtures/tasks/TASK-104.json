@@ -1,0 +1,17 @@
+{
+  "key": "TASK-104",
+  "title": "Delta done task",
+  "description": "Closed; should never appear in listTodos.",
+  "acceptance_criteria": ["Not returned by listTodos."],
+  "status": "done",
+  "priority": "medium",
+  "labels": [],
+  "assignee": null,
+  "depends_on": [],
+  "linked_commits": ["abcdef0"],
+  "linked_prs": [],
+  "comments": [],
+  "created_at": "2026-01-04T00:00:00Z",
+  "updated_at": "2026-01-04T00:00:00Z",
+  "jira_key": null
+}

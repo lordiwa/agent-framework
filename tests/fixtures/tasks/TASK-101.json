@@ -1,0 +1,17 @@
+{
+  "key": "TASK-101",
+  "title": "Alpha todo task",
+  "description": "First fixture task in todo state.",
+  "acceptance_criteria": ["Returned by listTodos."],
+  "status": "todo",
+  "priority": "high",
+  "labels": [],
+  "assignee": null,
+  "depends_on": [],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [],
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z",
+  "jira_key": null
+}

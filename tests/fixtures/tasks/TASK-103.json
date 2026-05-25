@@ -1,0 +1,23 @@
+{
+  "key": "TASK-103",
+  "title": "Gamma todo task with comments",
+  "description": "Second todo, has an existing comment to verify append preserves history.",
+  "acceptance_criteria": ["Returned by listTodos.", "Existing comments preserved on append."],
+  "status": "todo",
+  "priority": "low",
+  "labels": ["bootstrap"],
+  "assignee": null,
+  "depends_on": [],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-01-03T00:00:00Z",
+      "body": "Initial seed comment."
+    }
+  ],
+  "created_at": "2026-01-03T00:00:00Z",
+  "updated_at": "2026-01-03T00:00:00Z",
+  "jira_key": null
+}

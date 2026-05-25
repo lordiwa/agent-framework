@@ -175,4 +175,5 @@ export const PROD = Object.freeze({
   recovery: prodUrl('recovery.js'),
   migrate: prodUrl('migrate.js'),
   transcript: prodUrl('transcript.js'),
+  taskStore: prodUrl('task-store.js'),
 });
