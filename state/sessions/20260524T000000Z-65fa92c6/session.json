@@ -59,6 +59,16 @@
       "at": "2026-05-25T04:30:00Z",
       "decision": "TASK-004 implementation is functionally complete; all 30 tests pass on the first run of phase 3b with no test edits and no phase-3a regressions.",
       "rationale": "Two-phase split (3a lifecycle/state-plumbing, 3b KB/summary/inspection/docs) gave clear review boundaries and let the Orchestrator run the live-state lift between phases. Final commit history is 12 commits ending in 0894227. Per CLAUDE.md §Workflow item 6 the next required step is the Reviewer subagent in a fresh context."
+    },
+    {
+      "at": "2026-05-25T06:15:00Z",
+      "decision": "Add `atomicWriteFiles` (two-phase commit batched primitive) to src/atomic-write.js rather than inlining the recipe in src/task-store.js.",
+      "rationale": "The TASK-001 atomic-write spec requires `max(fsyncSync.callOrder) < min(renameSync.callOrder)` across the whole mutation (task file + index file). Two sequential single-file `atomicWriteFile` calls interleave fsync/rename, violating the invariant. Two options: (a) add a batched primitive to atomic-write.js, (b) duplicate the EBUSY retry loop + tmp-naming in task-store.js. Picked (a) — additive (no existing single-file caller changes), keeps the EBUSY recipe in one place, and gives any future multi-file writer the same semantics for free. Reviewer audited every existing single-file caller (src/bundle.js ×2, src/knowledge.js, src/pointer.js, src/transcript.js) and confirmed zero regression."
+    },
+    {
+      "at": "2026-05-25T06:30:00Z",
+      "decision": "TASK-001 closed APPROVE on the first review pass. 5 LOWs spun out as TASK-009 (hardening) rather than fixed in-band.",
+      "rationale": "Reviewer verdict was clean (0 HIGH, 0 MEDIUM, 5 LOW, 2 NIT) and independently re-validated comment shape via ajv round-trip against tasks/schema.json. All 5 LOWs are real edge cases (partial-commit window, TOCTOU, no tmp recovery for tasks/, listTodos ignores depends_on, no defensive ajv on read) but none block correctness today. Spinning them into a dedicated follow-up keeps the TASK-001 close clean and gives the next operator an unambiguous punch list. TASK-008 (TASK-004 LOWs) and TASK-009 (TASK-001 LOWs) can be batched in a single hardening sprint when the team is ready."
     }
   ],
   "subagent_results": [
@@ -109,6 +119,40 @@
       "agentId": "afc8241302c944868"
     },
     {
+      "at": "2026-05-25T06:10:00Z",
+      "agent": "developer",
+      "task": "TASK-001 failing test suite (tests-first phase)",
+      "artifacts": [
+        "tests/task-store.spec.js",
+        "tests/fixtures/tasks/TASK-101.json",
+        "tests/fixtures/tasks/TASK-102.json",
+        "tests/fixtures/tasks/TASK-103.json",
+        "tests/fixtures/tasks/TASK-104.json",
+        "tests/helpers/fixtures.js"
+      ],
+      "summary": "Wrote 11 failing specs across 4 describe blocks (AC1 listTodos ×3, AC2 transitionStatus ×4, AC3 appendComment ×3, ATOMIC ×1). Added one entry to the frozen PROD map in tests/helpers/fixtures.js — taskStore: prodUrl('task-store.js') — matching the file:// URL pattern used by the other 10 modules. Created 4 fixture tasks (TASK-101..104) covering all 5 statuses including one with a seed comment for the preserve-comments test. After npm test: 11 new failures (all `Failed to load url .../src/task-store.js` — Vite's MODULE_NOT_FOUND surface — the right reason) + 32 pre-existing pass. Caught one orchestrator-introduced regression on the side: workflow_step:'tests_first' was not in the bundle schema enum [idle|fetch|research|test|impl|review|update]; flagged in the punch list, Orchestrator fixed pre-impl. Commit 5619336.",
+      "agentId": "a12cba438b640ef9f"
+    },
+    {
+      "at": "2026-05-25T06:20:00Z",
+      "agent": "developer",
+      "task": "TASK-001 task-store implementation (impl phase)",
+      "artifacts": [
+        "src/task-store.js",
+        "src/atomic-write.js"
+      ],
+      "summary": "Implemented src/task-store.js with the three exports the suite pins (listTodos, transitionStatus, appendComment), each routed through atomic writes and each regenerating tasks/index.json after a mutation. Hard-coded STATUSES constant mirroring tasks/schema.json with a one-line comment pointing at the schema as source of truth. Key design move: added a new additive export `atomicWriteFiles` (two-phase commit) to src/atomic-write.js to satisfy the writes_go_through_atomic_write spec's invariant max(fsync.callOrder) < min(rename.callOrder). Two-phase recipe: open+write+fsync+close ALL tmps first, then rename ALL. Shares the same EBUSY/EPERM retry loop as the single-file primitive. Both mutators (transitionStatus, appendComment) now read all per-task files once, mutate in-memory, then batch-write [task.json, index.json] together — the index payload reflects the same snapshot as the task write. After npm test: 43/43 pass in ~3.3s, no regressions to any of the 32 pre-existing specs. Commit 9bfb956.",
+      "agentId": "aea078e9eaabde612"
+    },
+    {
+      "at": "2026-05-25T06:25:00Z",
+      "agent": "reviewer",
+      "task": "TASK-001 independent audit (fresh context)",
+      "artifacts": [],
+      "summary": "Verdict: **APPROVE**. 0 HIGH, 0 MEDIUM, 5 LOW, 2 NIT. Independently re-ran npm test from clean state twice (3.20s then 3.35s — stable, no flake). Independently round-tripped an appendComment-produced payload through ajv 2020 + ajv-formats against tasks/schema.json — VALID:true, comment shape exactly {author,at,body}. Verified all 4 ACs mapped to named tests with concrete on-disk assertions. Confirmed atomicWriteFiles is genuinely two-phase (all fsyncs before any rename) and additive — read all 4 existing single-file callers (src/bundle.js ×2, src/knowledge.js, src/pointer.js, src/transcript.js) and confirmed zero regression risk. Confirmed error paths: invalid status throws before reading disk; unknown key throws after read but before any write; both leave on-disk bytes byte-identical. Determinism: injected `now` is honored byte-for-byte in both per-task file and index.generated_at; no Date.now() leak. The 5 LOWs (partial-commit window in atomicWriteFiles, TOCTOU between readAllTasks and write, no tmp recovery sweeper for tasks/, listTodos ignores depends_on, no defensive ajv on read) carried over to TASK-009. The 2 NITs (unreachable `throw lastErr` in both atomic-write loops, hand-maintained STATUSES enum) flagged as harmless and left as-is.",
+      "agentId": "a1b8a5fdcc87403f2"
+    },
+    {
       "at": "2026-05-25T05:00:00Z",
       "agent": "reviewer",
       "task": "TASK-004 independent audit (fresh context)",
@@ -153,10 +197,10 @@
       "agentId": "afc8241302c944868"
     }
   ],
-  "pending_human_confirmation": null,
-  "updated_at": "2026-05-25T06:00:00Z",
-  "active_task": "TASK-001",
-  "workflow_step": "test",
-  "next_action": "Spawn developer subagent (fresh context) to write the failing Vitest suite for src/task-store.js covering all 4 ACs of TASK-001: listTodos(), transitionStatus(key, newStatus), appendComment(key, {author, body}), and automatic tasks/index.json regeneration after every write. Tests must use the existing tmpRepo + fixtures helpers and the PROD map indirection from tests/helpers/fixtures.js. No production code in the test commit. Once the suite is committed and failing for the right reason, spawn a second developer to implement src/task-store.js on top of src/atomic-write.js. Then reviewer in fresh context, then close per CLAUDE.md §Workflow item 7.",
-  "handoff_summary": "TASK-001 (wire local task store into the Orchestrator workflow) just started. Ticket transitioned todo->in_progress at 2026-05-25T06:00:00Z with an orchestrator comment recording the plan; tasks/index.json regenerated to match. No research needed — the adapter is thin file I/O layered on src/atomic-write.js which TASK-004 already shipped. Workflow position: step 4 of CLAUDE.md (tests-first). Baseline before starting: TASK-004 closed in 6d079b1, repo head 0894227, npm test 30 passed / 0 failed in ~3s. State persistence is bundle-based: state/session.json is the v2 pointer; live bundle is state/sessions/20260524T000000Z-65fa92c6/ with session.json (this file), manifest.json (lifted_from_v1: true), and lifecycle.log. TASK-008 still holds 5 LOWs from the TASK-004 review for later. Remaining workflow steps for TASK-001: spawn developer for failing tests, spawn developer for implementation, spawn reviewer in fresh context, then close per CLAUDE.md §Workflow item 7."
+  "pending_human_confirmation": "Awaiting human direction on next ticket. Two follow-up LOW-priority tickets are now unblocked (TASK-008 from the TASK-004 review, TASK-009 from the TASK-001 review) and could be batched as a hardening sprint. TASK-002 (new-task helper script) is the next forward-progress ticket from the original bootstrap chain. TASK-005 (npm audit triage) and TASK-003 (Jira migration; blocked on MCP credentials) round out the queue.",
+  "updated_at": "2026-05-25T06:30:00Z",
+  "active_task": null,
+  "workflow_step": "idle",
+  "next_action": "TASK-001 closed (status=done, 2 commits linked: 5619336 test, 9bfb956 impl; reviewer APPROVE on first pass). 5 LOW reviewer findings spun out as TASK-009. Workflow returns to idle pending the human picking the next ticket. Forward-progress candidate: TASK-002 (new-task helper script). Hardening candidates batched together: TASK-008 + TASK-009. Quick win: TASK-005 (npm audit triage). Blocked: TASK-003 (Jira migration) on MCP credentials.",
+  "handoff_summary": "TASK-001 (wire local task store into the Orchestrator workflow) is **closed**. The repo now has a fully-tested task-store adapter at src/task-store.js exposing listTodos / transitionStatus / appendComment, all routed through src/atomic-write.js. A new additive primitive `atomicWriteFiles` (two-phase commit batched writes — open+write+fsync all tmps first, then rename all) was added to src/atomic-write.js to satisfy the test's max(fsync) < min(rename) syscall-ordering invariant; the four existing single-file callers (src/bundle.js ×2, src/knowledge.js, src/pointer.js, src/transcript.js) are unchanged. Test suite: 43/43 vitest passing in ~3.3s (11 new task-store specs + 32 pre-existing). Reviewer ran in a fresh context, verdict APPROVE (0 HIGH, 0 MEDIUM, 5 LOW, 2 NIT), independently round-tripped an appendComment payload through ajv against tasks/schema.json (VALID). The 5 LOW reviewer findings are captured as TASK-009 (hardening). Git history added 4 commits this session: 91f7a6c chore(state) TASK-001 in_progress, 5619336 test failing suite, 9bfb956 feat impl, plus this pending close commit. Outstanding tickets snapshot: TASK-002 (helper script, medium), TASK-003 (Jira migration, medium, blocked on MCP creds), TASK-005 (npm audit, low), TASK-008 (TASK-004 polish, low), TASK-009 (TASK-001 hardening, low). State persistence remains bundle-based — state/session.json is the v2 pointer, the live bundle is state/sessions/20260524T000000Z-65fa92c6/."
 }

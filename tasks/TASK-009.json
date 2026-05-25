@@ -1,0 +1,29 @@
+{
+  "key": "TASK-009",
+  "title": "Hardening pass: 5 LOW findings from TASK-001 review",
+  "description": "Follow-up polish for the local task store adapter (`src/task-store.js`) and the new `atomicWriteFiles` two-phase primitive. None of these block correctness today, but each closes a real edge case.\n\n1. **Partial-commit window in `atomicWriteFiles` (src/atomic-write.js:116-139)** — if the second rename in a batch fails after the first rename succeeded, on-disk state is split (task file new, index file old). Acceptable today because `index.json` is regenerable, but a recovery path should detect task/index drift on read. Suggested fix: a `verifyAndRepairIndex(repoRoot)` helper invoked at the top of `listTodos`, or a standalone sweeper.\n2. **TOCTOU between `readAllTasks` and `atomicWriteFiles` (src/task-store.js:100-111)** — if a sibling task file is mutated between the read and the index regen, the regenerated `index.json` will project the older sibling. No concurrency safety is in scope for single-orchestrator use, but a one-line code comment naming the assumption belongs in the file.\n3. **No recovery sweeper for `tasks/*.tmp.*`** — `recovery.sweepAndRecover` is bundle-scoped. A crash mid-write could leave orphan tmp files in `tasks/`. Extend the sweeper (or add a `tasks/`-scoped analog) and call it at orchestrator start.\n4. **`listTodos` ignores `depends_on`** — AC1 of TASK-001 is satisfied by status filtering alone, but the orchestrator will eventually need a `listReady()` (or filter param) that excludes tasks whose dependencies are not yet `done`.\n5. **No defensive ajv validation on read** — `readAllTasks` does `JSON.parse` only. A malformed task file would surface as a downstream field error rather than a schema-validated rejection. Add validation-on-write (cheaper than validation-on-read) using the existing schema and the ajv pattern from `tests/live-state.spec.js`.\n\nReference: full reviewer report is summarized in the TASK-001 closing comment (2026-05-25T06:30:00Z).",
+  "acceptance_criteria": [
+    "`atomicWriteFiles` either becomes truly all-or-nothing or is paired with an automatic drift-detect-and-repair path that fires before `listTodos` returns stale data.",
+    "`src/task-store.js` carries an explicit single-writer assumption comment near the read-then-write block, and any future multi-writer requirement is captured as a follow-up ticket.",
+    "An orchestrator-start hook (or equivalent) removes orphan `tasks/*.tmp.*` files left behind by interrupted writes.",
+    "`listTodos` (or a new `listReady`) excludes tasks whose `depends_on` keys are not yet `done`; existing `listTodos` behavior may stay for raw status listing if both are kept.",
+    "Writes via `transitionStatus` and `appendComment` validate the resulting payload against `tasks/schema.json` before committing; invalid payloads throw and leave on-disk bytes unchanged."
+  ],
+  "status": "todo",
+  "priority": "low",
+  "labels": ["hardening", "follow-up", "task-store"],
+  "assignee": null,
+  "depends_on": ["TASK-001"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-25T06:30:00Z",
+      "body": "Created from the TASK-001 reviewer audit (verdict APPROVE, 5 LOWs). All five concern the task-store adapter or its underlying atomic-write batched primitive. Take alongside or after TASK-008 (which carries 5 LOWs from the TASK-004 review)."
+    }
+  ],
+  "created_at": "2026-05-25T06:30:00Z",
+  "updated_at": "2026-05-25T06:30:00Z",
+  "jira_key": null
+}

@@ -8,21 +8,29 @@
     "Orchestrator can append a comment to a task with author, ISO-8601 timestamp, and markdown body.",
     "`index.json` is regenerated from per-task files after any write."
   ],
-  "status": "in_progress",
+  "status": "done",
   "priority": "high",
   "labels": ["bootstrap", "harness"],
   "assignee": "developer",
   "depends_on": ["TASK-004"],
-  "linked_commits": [],
+  "linked_commits": [
+    "5619336",
+    "9bfb956"
+  ],
   "linked_prs": [],
   "comments": [
     {
       "author": "orchestrator",
       "at": "2026-05-25T06:00:00Z",
       "body": "Picked up after TASK-004 closed. No research needed — adapter is thin file I/O on top of `src/atomic-write.js` and the existing `tasks/schema.json`. Workflow: developer writes failing Vitest suite covering all 4 ACs, then implements `src/task-store.js`, then reviewer audits in fresh context."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-25T06:30:00Z",
+      "body": "Closed. Workflow complete: tests-first commit `5619336` (11 failing specs in `tests/task-store.spec.js`, all MODULE_NOT_FOUND for the right reason), implementation commit `9bfb956` (`src/task-store.js` + additive `atomicWriteFiles` two-phase primitive in `src/atomic-write.js`), reviewer audit in fresh context returned **APPROVE** (0 HIGH, 0 MEDIUM, 5 LOW, 2 NIT). 43/43 vitest passing in ~3s. AC coverage map: AC1 (list todos) — `list_todos_returns_only_status_todo`, `list_todos_empty_store`, `list_todos_ignores_index_json`; AC2 (transition status) — `transition_status_writes_new_status_and_bumps_updated_at`, `transition_status_rejects_invalid_status`, `transition_status_rejects_unknown_key`, `transition_status_regenerates_index_after_write`; AC3 (append comment) — `append_comment_pushes_well_formed_object`, `append_comment_preserves_existing_comments`, `append_comment_bumps_updated_at_and_regenerates_index`; AC4 (index regen) — covered jointly by the two `*_regenerates_index_*` tests plus the `writes_go_through_atomic_write` syscall-ordering assertion. Reviewer independently round-tripped `appendComment` output through ajv against `tasks/schema.json` — VALID. The 5 LOWs (partial-commit window in `atomicWriteFiles`, TOCTOU between `readAllTasks` and write, no recovery sweeper for `tasks/*.tmp.*`, `listTodos` ignores `depends_on`, no defensive ajv on read) carried over to **TASK-009**."
     }
   ],
   "created_at": "2026-05-23T00:00:00Z",
-  "updated_at": "2026-05-25T06:00:00Z",
+  "updated_at": "2026-05-25T06:30:00Z",
   "jira_key": null
 }
