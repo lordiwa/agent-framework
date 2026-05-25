@@ -3,9 +3,8 @@
   "session_id": "20260524T000000Z-65fa92c6",
   "lifecycle_state": "active",
   "open_questions": [
-    "Spawn the Reviewer subagent in a fresh context now (per CLAUDE.md §Workflow item 6) or pause for a human walkthrough of the 30 passing tests + the new src/, knowledge/, and docs first?",
-    "After Reviewer approval, who closes TASK-004? Per CLAUDE.md item 7 the Orchestrator transitions status to `done`, appends a summary comment, populates `linked_commits` with the SHAs from this branch, refreshes `updated_at`, and regenerates `tasks/index.json`. Confirm the orchestrator should do that itself or wait for explicit human approval per ticket.",
-    "TASK-005 (npm audit triage, deferred during TASK-004 setup) becomes actionable as soon as TASK-004 transitions to done. Pick up next, or queue something else?"
+    "Re-spawn the Developer to fix M1 (regex bug in tests/knowledge-files.spec.js + tests/knowledge-lookup.spec.js Windows-path deny list) and M2 (live bundle's session.json doesn't validate against state/bundle.schema.json — relax maxLengths and open subagent_results items to include task/agentId). After fix and clean test run, close TASK-004.",
+    "After TASK-004 closes: TASK-005 (npm audit triage, 5 moderate) and TASK-008 (5 LOW polish items) both become actionable. Pick up next or queue something else?"
   ],
   "blockers": [
     "Atlassian and GitHub MCP credentials not yet set (ATLASSIAN_SITE_URL, ATLASSIAN_USER_EMAIL, ATLASSIAN_API_TOKEN, GITHUB_PERSONAL_ACCESS_TOKEN). Blocks TASK-003 only; TASK-004, TASK-001, and TASK-002 can proceed without them."
@@ -96,6 +95,14 @@
       "agentId": "afc8241302c944868"
     },
     {
+      "at": "2026-05-25T05:00:00Z",
+      "agent": "reviewer",
+      "task": "TASK-004 independent audit (fresh context)",
+      "artifacts": [],
+      "summary": "Verdict: APPROVE-WITH-FOLLOWUPS. Independently re-ran npm test from clean state — 30/30 pass in 4.05s (verbose 4.45s), no console warnings, no flaky behavior. 0 HIGH findings (would have blocked), 2 MEDIUM, 5 LOW, 1 NIT. Reviewer explicitly noted: 'if the team prefers strict-clean-on-merge then the schema drift in particular deserves a HIGH reclassification.' MEDIUM #1: tests/knowledge-files.spec.js + tests/knowledge-lookup.spec.js Windows-path deny-list regex compiles to '[A-Z]:\\\\' which requires literal double-backslash; a real Windows path C:\\foo would NOT trip the lint, silently weakening AC8. MEDIUM #2: live state/sessions/<id>/session.json does not validate against state/bundle.schema.json — next_action exceeds maxLength:300, subagent_results items contain task and agentId which violate additionalProperties:false, and summary strings exceed maxLength:1000. Tests don't catch this because they use small synthetic bundles via fixtures.js. The 5 LOWs (researcher Write scope, ambiguous error in loadActiveBundleWithFallback, non-atomic summary.md write, comment drift in migrate.js, too-loose regex in lifecycle test #174) were captured in TASK-008. Full coverage map and resolved-questions implementation check confirm all 12 ACs and all 10 resolved questions correctly implemented.",
+      "agentId": "aafd0bf5f02f42224"
+    },
+    {
       "at": "2026-05-25T04:30:00Z",
       "agent": "developer",
       "task": "TASK-004 phase 3b implementation (knowledge base, summary, inspection, doc migrations)",
@@ -132,10 +139,10 @@
       "agentId": "afc8241302c944868"
     }
   ],
-  "pending_human_confirmation": "Awaiting human direction on whether to spawn the Reviewer subagent in a fresh context now (per CLAUDE.md §Workflow item 6) and, after a green review, on closing TASK-004 (transition status to done, append summary comment, populate linked_commits with this branch's SHAs, regenerate tasks/index.json).",
-  "updated_at": "2026-05-25T04:30:00Z",
+  "pending_human_confirmation": "Awaiting Developer fix of the two MEDIUM findings, then closure of TASK-004.",
+  "updated_at": "2026-05-25T05:00:00Z",
   "active_task": "TASK-004",
   "workflow_step": "review",
-  "next_action": "TASK-004 implementation is functionally complete: 12 commits, 30/30 tests passing, no scope leak, all 12 acceptance criteria in tasks/TASK-004.json have implementations and tests behind them. Per CLAUDE.md §Workflow item 6 the next required step is the Reviewer subagent, spawned in a fresh context with only read-only tools and pre-approved verification scripts (Bash test/lint/typecheck/git diff/log/show). The Reviewer must independently re-run `npm test` from clean state, audit the diff against the ticket's acceptance criteria, and return severity-classified findings; the workflow blocks on any HIGH-severity finding.",
+  "next_action": "Re-spawn the Developer subagent for a small focused fix run targeting the two MEDIUM findings from the Reviewer (M1 Windows-path regex bug in two test files; M2 state/bundle.schema.json drift against live data). Also add a new test that validates the live bundle's session.json against state/bundle.schema.json so this class of drift gets caught on every test run. After commit and 30/30 (or higher) clean: close TASK-004 per CLAUDE.md §Workflow item 7. Five LOWs are tracked separately as TASK-008.",
   "handoff_summary": "TASK-004 (portable session bundles + lifecycle + lessons-learned KB) is implementation-complete and awaiting Reviewer. The repo sits at 12 commits ending with 0894227 (phase 3b: src/summary + src/inspection + src/knowledge + knowledge/ tree with 2 seed entries + CLAUDE.md v2 RESUME-FIRST + state/README.md v2 layout + .claude/agents/researcher.md mandatory KB lookup + phase-3a cosmetic fixes). `npm test` reports 30 passed / 0 failed / 30 total in ~3s. Both the cross-machine round-trip test and the v1→v2 migration test exercise their full code paths against real fixtures. State persistence is now bundle-based: state/session.json is the v2 pointer with three fields; the live bundle is state/sessions/20260524T000000Z-65fa92c6/ containing session.json (full orchestrator state), manifest.json (with SHA-256 hostname fingerprint and lifted_from_v1: true), and lifecycle.log (audit trail starting with the migrate_v1 event). The Claude Code transcript directory was discovered at ~/.claude/projects/<encoded-repo-path>/ where the encoding replaces \\, /, : with -; this is baked into src/transcript.js as the default with CLAUDE_CODE_TRANSCRIPT_DIR as override. The knowledge/ directory has been bootstrapped with two seed entries codifying lessons learned during this branch: session-audit-logs-vs-wildcard-gitignore (the *.log carve-out we needed) and windows-atomic-rename-not-truly-atomic (the same-dir tmp + EBUSY-retry recipe). The Researcher subagent contract now mandates KB lookup as step 2 of Process, before any web search. Remaining workflow steps: Reviewer in fresh context, then orchestrator-driven ticket close per CLAUDE.md §Workflow item 7 (status -> done, comment, linked_commits, regenerate tasks/index.json)."
 }
