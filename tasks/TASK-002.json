@@ -1,0 +1,21 @@
+{
+  "key": "TASK-002",
+  "title": "Add a `new-task` helper script",
+  "description": "Create a small Node or Python script (whichever fits the rest of the project) that scaffolds a new task JSON: picks the next sequential key, prompts for title/description/acceptance_criteria/priority, stamps `created_at`/`updated_at`, and writes the file plus updates `index.json`. This keeps the human-driven path low-friction so we actually use the local store.",
+  "acceptance_criteria": [
+    "Running the script with no arguments prompts for required fields and produces a valid task JSON that conforms to `tasks/schema.json`.",
+    "The new task's key is exactly one greater than the highest existing TASK-NNN file.",
+    "`tasks/index.json` is updated atomically (write to temp file, rename) so a crash mid-write cannot corrupt the index."
+  ],
+  "status": "todo",
+  "priority": "medium",
+  "labels": ["bootstrap", "ergonomics"],
+  "assignee": null,
+  "depends_on": ["TASK-001"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [],
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-05-23T00:00:00Z",
+  "jira_key": null
+}

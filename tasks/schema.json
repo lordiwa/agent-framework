@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-framework.local/tasks/schema.json",
+  "title": "Task",
+  "description": "A single unit of work for the agentic team. Field names mirror Jira issue fields so the same task can later be created in Jira without lossy translation.",
+  "type": "object",
+  "required": ["key", "title", "description", "acceptance_criteria", "status", "priority", "created_at", "updated_at"],
+  "additionalProperties": false,
+  "properties": {
+    "key": {
+      "type": "string",
+      "pattern": "^TASK-[0-9]{3,}$",
+      "description": "Stable human-readable identifier. Maps to Jira issue key on migration."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "One-line summary. Maps to Jira `summary`."
+    },
+    "description": {
+      "type": "string",
+      "description": "Markdown-formatted full description of the work. Maps to Jira `description`."
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" },
+      "description": "Falsifiable criteria for 'done'. The Developer must turn each into at least one test."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["todo", "in_progress", "in_review", "blocked", "done"],
+      "description": "Lifecycle state. Maps to Jira workflow status."
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"]
+    },
+    "labels": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "assignee": {
+      "type": ["string", "null"],
+      "description": "Subagent name or human identifier. Null = unassigned.",
+      "default": null
+    },
+    "depends_on": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^TASK-[0-9]{3,}$" },
+      "default": [],
+      "description": "Other task keys that must reach `done` before this one can start."
+    },
+    "linked_commits": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "linked_prs": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "comments": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "required": ["author", "at", "body"],
+        "additionalProperties": false,
+        "properties": {
+          "author": { "type": "string" },
+          "at": { "type": "string", "format": "date-time" },
+          "body": { "type": "string" }
+        }
+      }
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "jira_key": {
+      "type": ["string", "null"],
+      "default": null,
+      "description": "Populated when the task has been mirrored to Jira. Until then, null."
+    }
+  }
+}

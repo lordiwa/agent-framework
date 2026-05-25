@@ -1,0 +1,9 @@
+{
+  "generated_at": "2026-05-24T00:00:00Z",
+  "tasks": [
+    { "key": "TASK-001", "title": "Wire local task store into the Orchestrator workflow", "status": "todo", "priority": "high" },
+    { "key": "TASK-002", "title": "Add a `new-task` helper script", "status": "todo", "priority": "medium" },
+    { "key": "TASK-003", "title": "Implement Jira migration command", "status": "todo", "priority": "medium" },
+    { "key": "TASK-004", "title": "Portable session bundles + lifecycle + lessons-learned KB", "status": "todo", "priority": "high" }
+  ]
+}

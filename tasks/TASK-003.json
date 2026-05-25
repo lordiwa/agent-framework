@@ -1,0 +1,22 @@
+{
+  "key": "TASK-003",
+  "title": "Implement Jira migration command",
+  "description": "Once the Atlassian MCP server is registered in `.claude/settings.json` and credentials are configured, add a one-shot command that walks every task file with `jira_key: null`, creates the matching Jira issue, and writes the returned issue key back to the JSON. After migration, the local store becomes an append-only audit log and Jira is the source of truth.",
+  "acceptance_criteria": [
+    "Command is idempotent: re-running it never creates duplicate Jira issues.",
+    "Field mapping is one-to-one with no data loss for: title, description, acceptance_criteria (rendered into the Jira description), priority, labels, status (mapped to the matching Jira workflow state).",
+    "Each migrated task gets `jira_key` populated and `updated_at` refreshed.",
+    "A dry-run flag prints the planned migrations without calling Jira."
+  ],
+  "status": "todo",
+  "priority": "medium",
+  "labels": ["bootstrap", "jira", "migration"],
+  "assignee": null,
+  "depends_on": ["TASK-001"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [],
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-05-23T00:00:00Z",
+  "jira_key": null
+}

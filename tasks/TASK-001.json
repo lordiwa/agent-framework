@@ -1,0 +1,22 @@
+{
+  "key": "TASK-001",
+  "title": "Wire local task store into the Orchestrator workflow",
+  "description": "Until the Atlassian MCP server is provisioned, the Orchestrator must read tickets from `tasks/*.json` instead of Jira. Add a thin adapter so the rest of the workflow (Researcher, Developer, Reviewer hand-offs, status transitions, comment appending) is unchanged.",
+  "acceptance_criteria": [
+    "Orchestrator can list all tasks where status == 'todo' from the local store.",
+    "Orchestrator can transition a task's status and persist the change to its JSON file with an updated `updated_at` timestamp.",
+    "Orchestrator can append a comment to a task with author, ISO-8601 timestamp, and markdown body.",
+    "`index.json` is regenerated from per-task files after any write."
+  ],
+  "status": "todo",
+  "priority": "high",
+  "labels": ["bootstrap", "harness"],
+  "assignee": null,
+  "depends_on": ["TASK-004"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [],
+  "created_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-05-23T00:00:00Z",
+  "jira_key": null
+}

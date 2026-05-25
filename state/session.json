@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "updated_at": "2026-05-24T00:00:00Z",
+  "active_task": "TASK-004",
+  "workflow_step": "idle",
+  "next_action": "TASK-004 is fully specified and ready for the Developer subagent to begin tests-first per CLAUDE.md §Workflow. Acceptance criteria are locked, design context lives in tasks/TASK-004.research.md, and all 10 open design questions have been resolved (see TASK-004 comment dated 2026-05-24). The Developer's first deliverable should be a failing test suite (per AC mapping in research §H) before any implementation lands. Open implementation TODO: discover the Claude Code transcript directory path on Windows (§I question 3) — likely %APPDATA%\\Claude\\ but needs verification.",
+  "handoff_summary": "Framework bootstrap complete. Harness in place: CLAUDE.md with RESUME-FIRST contract, four subagent definitions, tech-training skill template, .claude/settings.json with Atlassian + GitHub MCP servers and a permissions tier. Repo is git-init'd as of 2026-05-24 with .gitignore covering secrets/OS cruft/runtime dirs. Task store under tasks/ has four bootstrap tickets — TASK-004 (top priority, portable session bundles + lifecycle + KB), TASK-001 (depends on TASK-004), TASK-002 (depends on TASK-001), TASK-003 (depends on TASK-001 + MCP creds). TASK-004 has been fully designed: the Researcher delivered tasks/TASK-004.research.md (528 lines, §§A–I) covering bundle layout, pointer file schema with v1→v2 migration rule, lifecycle ops with Windows-aware atomic-write recipe, summary.md content sourcing, inspection commands, KB layout + frontmatter schema + deterministic lookup procedure, Researcher contract diff, 26-test matrix, and 10 open questions. All 10 questions have been resolved by the human (see TASK-004 comment). Two deviations from researcher recommendations: (a) transcript snapshot is taken on every pause and end rather than end-only, prioritizing cross-machine portability; (b) the schema-version field is named `schema_version` in BOTH the pointer file and each bundle's session.json (the researcher had recommended keeping `version` on the bundle for backward compat, but there is no production code consuming the v1 name so the rename is free). The framework also rejected a proposal to move state to a SQL/NoSQL database — files-as-source-of-truth was kept because portability (zip+email a bundle), git diff visibility, and zero-install inspectability outweighed the query-performance gains at the current zero-corpus scale. No production code has been written; nothing has been committed yet.",
+  "open_questions": [
+    "Spawn the Developer subagent now to begin tests-first for TASK-004, or pause and review the locked design with a human walkthrough first?",
+    "When should we make the first git commit? Options: (a) commit the entire bootstrap as one initial commit now, (b) commit per logical unit (harness setup, then tasks, then research doc, then resolved-questions), (c) wait until TASK-004 produces its first passing test. Recommend (b) to match the Conventional Commits + one-logical-change-per-commit etiquette in CLAUDE.md.",
+    "Implementation TODO inside TASK-004 (not blocking design): discover the Claude Code transcript directory path on Windows for the snapshot copier."
+  ],
+  "blockers": [
+    "Atlassian and GitHub MCP credentials not yet set (ATLASSIAN_SITE_URL, ATLASSIAN_USER_EMAIL, ATLASSIAN_API_TOKEN, GITHUB_PERSONAL_ACCESS_TOKEN). Blocks TASK-003 only; TASK-004, TASK-001, and TASK-002 can proceed without them."
+  ],
+  "decisions": [
+    {
+      "at": "2026-05-23T00:00:00Z",
+      "decision": "Use a local JSON task store under tasks/ as the interim ticket source before Jira is wired up.",
+      "rationale": "Lets the full Orchestrator→Researcher→Developer→Reviewer workflow run end-to-end without external dependencies. Field names mirror Jira so migration is loss-free."
+    },
+    {
+      "at": "2026-05-23T00:00:00Z",
+      "decision": "One JSON file per task plus a regenerable index.json.",
+      "rationale": "Cleaner diffs, easier per-task migration to Jira than a single monolithic JSON."
+    },
+    {
+      "at": "2026-05-24T00:00:00Z",
+      "decision": "Persist Orchestrator session state to state/session.json with atomic writes on every meaningful transition; new chats must read it before any other tool call.",
+      "rationale": "Lets the human restart the chat without losing context. A single small file plus the active task JSON is enough for a fresh chat to resume."
+    },
+    {
+      "at": "2026-05-24T00:00:00Z",
+      "decision": "Remove the fork-bomb entry from .claude/settings.json permissions.deny.",
+      "rationale": "The parser rejected it as empty parentheses, so it was providing zero protection. Other deny rules (git push --force, git reset --hard, rm -rf /) are intact."
+    },
+    {
+      "at": "2026-05-24T00:00:00Z",
+      "decision": "Plan session management as TASK-004 ahead of TASK-001. Augment Claude Code's native transcript handling rather than replace it; introduce portable per-session bundles under state/sessions/<id>/ and a portable knowledge/ lessons-learned KB consulted by the Researcher before web research.",
+      "rationale": "User needs cross-machine session portability and cross-project lesson reuse. Building this before the task-store wiring (TASK-001) means every subsequent task immediately benefits from continuity + KB lookups."
+    },
+    {
+      "at": "2026-05-24T00:00:00Z",
+      "decision": "Keep state-of-record as files (JSON + Markdown) rather than migrating to a SQL or NoSQL database for session/KB storage.",
+      "rationale": "User proposed a DB-backed store for stability and SQL sort/query benefits. Rejected because the stated #1 requirement was cross-machine portability + inspectability; a directory of JSON+MD wins on zip-and-email portability, git diff visibility, and zero-install inspection. The query-performance gains from SQL don't apply at current scale (0 closed sessions, 0 KB entries). If the KB grows past ~200 entries an opt-in SQLite-as-derived-index can be added later, with the .md files remaining source of truth."
+    },
+    {
+      "at": "2026-05-24T00:00:00Z",
+      "decision": "Resolved all 10 open design questions for TASK-004 (full text in tasks/TASK-004.json comment dated 2026-05-24). Two deviations from researcher recommendations: (a) transcript snapshot taken on every pause + end (not end-only); (b) schema-version field unified as `schema_version` in both pointer and bundle (not split as `version`/`schema_version`).",
+      "rationale": "Both deviations prioritize user-stated requirements over researcher's cost concerns. (a) Portability + crash recovery > a small amount of extra I/O. (b) Naming consistency for future readers > a refactor cost that is effectively zero since no production code yet consumes the v1 field name."
+    }
+  ],
+  "subagent_results": [
+    {
+      "at": "2026-05-24T00:00:00Z",
+      "agent": "researcher",
+      "task": "TASK-004 design research",
+      "artifacts": ["tasks/TASK-004.research.md"],
+      "summary": "Delivered the full design contract for TASK-004: bundle layout, pointer-file schema with v1→v2 migration rule, Windows-aware atomic-write recipe for lifecycle ops, summary.md content sourcing, inspection commands, KB layout + deterministic lookup procedure, Researcher contract diff, 26 test cases mapped to acceptance criteria including a cross-machine round-trip test, and 10 open design questions in §I. No new tech stack was introduced so no Agent Skill was created."
+    }
+  ],
+  "pending_human_confirmation": "Awaiting decision on whether to spawn the Developer subagent now for tests-first on TASK-004, or pause to commit the bootstrap state first."
+}

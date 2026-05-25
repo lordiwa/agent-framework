@@ -1,0 +1,36 @@
+{
+  "key": "TASK-004",
+  "title": "Portable session bundles + lifecycle + lessons-learned KB",
+  "description": "Add a cross-chat, cross-machine continuity layer that augments Claude Code's harness without replacing it. Claude Code retains ownership of its native transcript files; this task adds (1) portable per-session bundles under state/sessions/<id>/ that can be moved between computers and inspected after the fact, (2) explicit lifecycle commands (pause/resume/end) backed by atomic writes, (3) human-readable end-of-session summaries, and (4) a project-portable lessons-learned knowledge base under knowledge/ that the Researcher subagent must consult before web research. This ships before TASK-001 so the workflow has a continuity foundation.",
+  "acceptance_criteria": [
+    "state/session.json becomes a minimal pointer file with exactly three fields: schema_version, active_session_id, updated_at. Per-session orchestrator state lives at state/sessions/<session-id>/session.json with the same fields the current single file holds today, except the top-level `version` field is renamed `schema_version` for naming consistency with the pointer.",
+    "A session bundle directory state/sessions/<session-id>/ is fully self-contained: copying it to another machine and pointing state/session.json at its id is sufficient for a fresh chat there to resume with full context (no other files required).",
+    "Claude Code's native transcript files are not modified or relocated. The bundle references them by absolute path in transcript.ref.json, and copies a snapshot into transcript.snapshot/ on every `pause` and on `end` so the bundle remains portable cross-machine without requiring access to the original Claude Code transcript files.",
+    "Three lifecycle operations exist — pause / resume / end — each performing an atomic temp-file rename on the session.json inside the active bundle, updating workflow_step, handoff_summary, and updated_at.",
+    "Lifecycle operations are idempotent: pausing an already-paused session (or ending an ended one) is a no-op that logs cleanly.",
+    "session.end emits state/sessions/<session-id>/summary.md covering: dates, active_task, tasks touched, commits referenced, open threads, unresolved blockers.",
+    "Inspection: session.list returns a table of all bundle dirs (id, dates, active_task, status). session.show <id> prints session.json + summary.md for any past bundle without changing active state.",
+    "knowledge/ directory exists at repo root with schema.md, README.md, and at least one seed entry. Entries are portable Markdown with frontmatter (id, problem, symptoms, solution, tags, projects, created_at, last_seen_at) and contain no project-specific filesystem paths in the body.",
+    "The researcher subagent definition requires consulting knowledge/ before web research. The Orchestrator updates last_seen_at on any entry it reuses.",
+    "A documented export path produces a portable knowledge/ bundle that a second project can drop in without edits.",
+    "CLAUDE.md and state/README.md are updated to teach the new pointer-file shape so the RESUME-FIRST contract stays valid.",
+    "Tests cover: atomic-write crash safety, lifecycle idempotency, cross-machine bundle round-trip (write here → read from a different working dir → verify resume payload), inspection commands, and knowledge-base schema validation."
+  ],
+  "status": "todo",
+  "priority": "high",
+  "labels": ["bootstrap", "harness", "session", "portability", "knowledge-base"],
+  "assignee": null,
+  "depends_on": [],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-24T00:00:00Z",
+      "body": "Design questions from §I of tasks/TASK-004.research.md resolved with human (2026-05-24):\n\n1. No lockfile at v1. Single-writer assumption stands; revisit if multi-writer becomes a real workflow.\n2. Transcript snapshot captured on every `pause` AND on `end` (overrides researcher recommendation of end-only). Prioritizes cross-machine portability and crash recovery over I/O cost.\n3. Claude Code transcript directory path on Windows is unresolved — Developer must discover during implementation (likely under %APPDATA%\\Claude\\ or equivalent). Open implementation TODO.\n4. KB tokenizer: lowercase + stopword strip + tokens ≥ 3 chars. No Porter stemmer or other dependency.\n5. Researcher *proposes* KB entries (returns drafts in output). Orchestrator writes them to knowledge/entries/ after human approval. Researcher stays read-only on knowledge/.\n6. No bundle retention/GC policy. Old `ended` bundles accumulate in state/sessions/. Future task.\n7. `pending_human_confirmation` is preserved across `pause` (so the next chat sees what was waiting).\n8. Schema version field is named `schema_version` in BOTH the pointer file and inside each bundle's session.json (overrides researcher recommendation to keep `version` on the bundle). The v1→v2 lift renames `version` → `schema_version` as part of the migration. Cost is zero because no production code consumes the v1 field yet.\n9. manifest.json.host = SHA-256 hex of the OS hostname. Deterministic per machine, no PII leak.\n10. v1→v2 lift refuses to run if state/sessions/ already contains entries (treats it as 'someone else already lifted, re-read instead').\n\nFull design context in tasks/TASK-004.research.md."
+    }
+  ],
+  "created_at": "2026-05-24T00:00:00Z",
+  "updated_at": "2026-05-24T00:00:00Z",
+  "jira_key": null
+}
