@@ -161,8 +161,12 @@ export function hasExactly(actualEntries, expected) {
  */
 const __thisDir = dirname(fileURLToPath(import.meta.url));
 const __srcDir = join(__thisDir, '..', '..', 'src');
+const __binDir = join(__thisDir, '..', '..', 'bin');
 function prodUrl(name) {
   return pathToFileURL(join(__srcDir, name)).href;
+}
+function binUrl(name) {
+  return pathToFileURL(join(__binDir, name)).href;
 }
 export const PROD = Object.freeze({
   lifecycle: prodUrl('lifecycle.js'),
@@ -176,4 +180,5 @@ export const PROD = Object.freeze({
   migrate: prodUrl('migrate.js'),
   transcript: prodUrl('transcript.js'),
   taskStore: prodUrl('task-store.js'),
+  newTaskCli: binUrl('new-task.js'),
 });

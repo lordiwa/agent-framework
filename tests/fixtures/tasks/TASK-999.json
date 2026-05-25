@@ -1,0 +1,17 @@
+{
+  "key": "TASK-999",
+  "title": "Edge — three digit boundary task",
+  "description": "Used by next-key tests to confirm numeric increment crosses the 999 -> 1000 padding boundary.",
+  "acceptance_criteria": ["Next key derived from this fixture is TASK-1000."],
+  "status": "todo",
+  "priority": "low",
+  "labels": [],
+  "assignee": null,
+  "depends_on": [],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [],
+  "created_at": "2026-01-09T00:00:00Z",
+  "updated_at": "2026-01-09T00:00:00Z",
+  "jira_key": null
+}
