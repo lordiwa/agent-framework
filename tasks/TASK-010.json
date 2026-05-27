@@ -11,21 +11,29 @@
     "`bin/new-task.js` is refactored to delegate to `runQuestionnaire` for its title/description/AC-count/AC/priority prompt loop; the 4 pre-existing tests in `tests/new-task-cli.spec.js` pass without modification.",
     "New `tests/question-engine.spec.js` covers: (a) sequence with all-string questions, (b) branching via `when`, (c) validation re-prompt path, (d) resume from a half-written persist file, (e) `persistTo: null` writes nothing, (f) atomic-write call ordering (fsync before rename via `vi.mock('node:fs')`)."
   ],
-  "status": "in_progress",
+  "status": "done",
   "priority": "high",
   "labels": ["intake", "wizard", "ergonomics"],
   "assignee": "developer",
   "depends_on": ["TASK-002"],
-  "linked_commits": [],
+  "linked_commits": [
+    "76b2a41",
+    "6752c8e"
+  ],
   "linked_prs": [],
   "comments": [
     {
       "author": "orchestrator",
       "at": "2026-05-26T00:00:00Z",
       "body": "Created from the 2026-05-26 design conversation. User wants the framework to be cloneable by a non-technical operator who is then walked through an intake wizard that configures agents and seeds a backlog. We rejected adopting GSD wholesale because of the .planning/ vs tasks/ state-model collision, so we are building our own intake on top of the primitives already in the repo: prompter pattern from bin/new-task.js, atomic writes from src/atomic-write.js, lifecycle bundles for resumability. This ticket is foundational — TASK-011 through TASK-015 all depend on the engine landing first. Workflow: developer writes failing Vitest suite covering all 7 ACs, then implements + refactors bin/new-task.js to delegate, then reviewer in fresh context."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-26T01:00:00Z",
+      "body": "Closed. Workflow: tests-first commit `76b2a41` (16 failing specs in tests/question-engine.spec.js, all MODULE_NOT_FOUND for the right reason) + impl commit `6752c8e` (src/question-engine.js new + bin/new-task.js refactored to delegate via 3-phase engine invocation with an `adaptPrompter` shim at the bin/ boundary translating the engine's `{prompt, type, enum, error}` contract into the CLI's existing `(text) => string` contract). Reviewer in fresh context returned **APPROVE-WITH-FOLLOWUPS** (0 HIGH, 1 MEDIUM cosmetic, 7 LOW, 2 NIT). 74/74 vitest specs green in ~6s, atomic-write invariant verified per-rename across two runs (not flaky). All 4 pre-existing new-task-cli specs pass without modification (`git diff f8407d3..HEAD -- tests/new-task-cli.spec.js` is empty).\n\nDesign decisions worth recording (the IMPL commit body was empty so capturing here for the trail):\n\n1. **Dynamic-AC handling: option (A) — 3-phase engine invocation, not 2.** Phase 1 prompts title/description/ac_count; phase 2 prompts ac1..acN dynamically; phase 3 prompts priority. The split is necessary because the prompt order (title, description, ac_count, ac1..acN, priority) places the dynamic block BETWEEN ac_count and priority. Two phases would have forced priority before ACs or required `when`-gated synthetic ac_i questions, both worse.\n\n2. **`adaptPrompter` shim at bin/ boundary.** Wraps the legacy `(text) => string` prompter into the engine's `({prompt, type, enum, error}) => string` contract. Error rendering: `(<error>) <prompt> `. This isolation kept the engine API clean and avoided modifying any of the 4 existing CLI tests.\n\n3. **`persistTo: null` from new-task CLI.** The CLI was never resumable and doesn't need to be — the wizard (TASK-012) will pass a real path scoped to `state/sessions/<id>/intake.json`.\n\nAC coverage map: AC1 (signature + completedAt + answers keyed by id) — `sequence_all_string_questions`; AC2 (declarative shape + branching + types) — `branching_skips_when_false`, `branching_includes_when_true`, `multi_accepts_comma_separated_subset`; AC3 (validation re-prompts, not persisted until valid) — `validation_reprompts_on_required_empty`, `..._enum_mismatch`, `..._custom_validate`, `..._number_type_mismatch`; AC4 (per-answer persist + resume from lastAnsweredId) — `persistence_writes_after_each_answer`, `resume_from_partial_state`; AC5 (persistTo:null writes nothing) — `persistTo_null_writes_nothing`; AC6 (CLI delegates without breaking) — diff against tests/new-task-cli.spec.js is empty + all 4 pass; AC7 (sub-coverage of the engine spec including atomic-write ordering) — `atomic_write_invariant` (per-rename fsync-precedes check via vi.mock('node:fs')).\n\nReviewer findings rolled forward:\n- **MEDIUM** (dead-code `validate` on title question in bin/new-task.js): rolled into TASK-015 (UX polish ticket — when that lands it touches the same question array and can drop the redundant `validate` plus rename the `engineerPrompter` typo). Reviewer himself classified as cosmetic, not a correctness defect.\n- **LOW** (engine `when()` returning undefined treated as 'ask', silent JSON.parse swallow on corrupt resume file, no re-validation of restored answers): all acceptable at the engine layer — TASK-012 wizard is where strict-resume policy should live.\n- **LOW** (empty IMPL commit body): captured here in this close comment so the design decisions are durable.\n\nSmoke test: phase-2 dev ran `node bin/new-task.js --title 'Smoke' --description 'd' --ac one --priority low --label test-only` from repo root, got TASK-011 (key derived from current store correctly), then deleted the file and reverted tasks/index.json via `git checkout --` so `git status` was clean before committing. Ready for the next ticket in the chain — TASK-011 (question library + PROJECT.md schema)."
     }
   ],
   "created_at": "2026-05-26T00:00:00Z",
-  "updated_at": "2026-05-26T00:00:00Z",
+  "updated_at": "2026-05-26T01:00:00Z",
   "jira_key": null
 }
