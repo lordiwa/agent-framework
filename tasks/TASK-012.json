@@ -1,0 +1,33 @@
+{
+  "key": "TASK-012",
+  "title": "bin/init.js entrypoint + CLAUDE.md first-chat routing for project intake",
+  "description": "Third ticket in the project-intake wizard chain (TASK-010..015). Wires the engine (TASK-010) + the question library/PROJECT.md writer (TASK-011) into a working CLI that a non-technical user can run after cloning the framework. Also amends CLAUDE.md so the Orchestrator detects uninitialized repos on the first chat and routes the human to the wizard.\n\nDeliverables:\n\n1. **`bin/init.js`** — Entrypoint CLI. Calls `runQuestionnaire(buildIntakeQuestions())` with a real `node:readline/promises` prompter and a `persistTo` path inside the active session bundle. On completion, calls `writeProjectMd({repoRoot, answers, now})`. Prints a friendly final message pointing the user to the next step (start a chat with the orchestrator).\n\n2. **State machine** for the entrypoint, exactly three branches:\n   - **PROJECT.md exists** → print a one-paragraph summary (name, type, created_at) and exit 0. No mutation. Unless `--force` is passed, in which case continue to the wizard and overwrite on completion.\n   - **intake.json exists in the active session bundle AND PROJECT.md does NOT exist** → auto-resume the wizard from the engine's persisted `lastAnsweredId`. Friendly message tells the user we're resuming.\n   - **Neither** → fresh start. Create a new session bundle via `startSession` from `src/lifecycle.js`, then run the wizard with `persistTo` set to `state/sessions/<new-id>/intake.json`.\n\n3. **`runInit({argv, prompter, repoRoot, now, hostname})`** — exported testable function. The file's top-level executable path calls `runInit({argv: process.argv.slice(2), prompter: realReadlinePrompter, repoRoot: process.cwd(), now: () => new Date().toISOString(), hostname: os.hostname()})`. Same `pathToFileURL` Windows-safe gate as `bin/new-task.js`.\n\n4. **CLAUDE.md amendment.** Add a new section at the very top of the file (ABOVE 'RESUME FIRST') titled 'First-chat routing'. Content: 'Before reading the RESUME FIRST section: if `PROJECT.md` does not exist in the repo root, the framework has not been initialized for this project. Direct the human to run `node bin/init.js` (the project intake wizard) before any other workflow step.'\n\n5. **No new external deps.** Reuse `node:readline/promises` for the real prompter (same as `bin/new-task.js`). Reuse `startSession` and the pointer/bundle writers from `src/lifecycle.js`. Reuse `runQuestionnaire`, `buildIntakeQuestions`, and `writeProjectMd` from prior tickets.",
+  "acceptance_criteria": [
+    "`bin/init.js` exports `runInit({argv, prompter, repoRoot, now, hostname})` returning `Promise<{state, projectMdPath, sessionId}>` where `state` is one of 'created' | 'already_initialized' | 'resumed' | 'forced'.",
+    "PROJECT.md-present branch: when PROJECT.md exists at `<repoRoot>/PROJECT.md`, `runInit({argv: []})` returns `{state: 'already_initialized'}` without calling the prompter, without writing any file, and prints a summary line containing the project name and type.",
+    "PROJECT.md-present + `--force`: when PROJECT.md exists and `argv` contains `--force`, the wizard runs to completion and overwrites PROJECT.md. Returns `{state: 'forced'}`.",
+    "intake-resume branch: when `state/sessions/<active>/intake.json` exists with a valid `{answers, lastAnsweredId}` payload AND PROJECT.md does NOT exist, `runInit` resumes the wizard — prompter is only called for questions whose ids are absent from the loaded `answers`. Returns `{state: 'resumed'}`.",
+    "fresh-start branch: when neither PROJECT.md nor an active intake.json exists, `runInit` calls `startSession` to create a new bundle, then runs the wizard with `persistTo` set to that bundle's `intake.json`, then writes PROJECT.md. Returns `{state: 'created', sessionId: <new bundle id>}`.",
+    "CLAUDE.md has a new section titled 'First-chat routing' as its first heading-level-2 section (immediately after the document title, BEFORE 'RESUME FIRST'). The section instructs the orchestrator to direct the human to `node bin/init.js` when PROJECT.md is missing.",
+    "New `tests/init.spec.js` covers all four state branches (already_initialized, forced, resumed, created) using `tmpRepo` + fake prompter, asserts on disk state after each (PROJECT.md presence, bundle creation when appropriate, intake.json preservation).",
+    "Unknown flag in argv throws clearly with the flag name in the error message (parity with `bin/new-task.js`).",
+    "The existing 90 vitest specs continue to pass without modification — the new tests are additive."
+  ],
+  "status": "in_progress",
+  "priority": "high",
+  "labels": ["intake", "wizard", "entrypoint"],
+  "assignee": "developer",
+  "depends_on": ["TASK-010", "TASK-011"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-26T02:15:00Z",
+      "body": "Created. Design fixed pre-tests: three-branch state machine (already_initialized / resumed / created / forced), CLI exports a testable `runInit({argv, prompter, repoRoot, now, hostname})` function so tests inject everything. Persistence lives inside the session bundle (state/sessions/<id>/intake.json) so a Ctrl+C in the middle of the wizard can be picked up on the next invocation without a manual flag. CLAUDE.md gets a new 'First-chat routing' section above RESUME FIRST so the orchestrator detects uninitialized repos before doing anything else. No --resume flag — auto-resume is the right default UX for non-technical users. Workflow: developer writes failing Vitest suite covering the 4 state-machine branches + flag parsing + CLAUDE.md routing check, then implements, then reviewer in fresh context."
+    }
+  ],
+  "created_at": "2026-05-26T02:15:00Z",
+  "updated_at": "2026-05-26T02:15:00Z",
+  "jira_key": null
+}

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-26T02:00:00Z",
+  "generated_at": "2026-05-26T02:15:00Z",
   "tasks": [
     { "key": "TASK-001", "title": "Wire local task store into the Orchestrator workflow", "status": "done", "priority": "high" },
     { "key": "TASK-002", "title": "Add a `new-task` helper script", "status": "done", "priority": "medium" },
@@ -10,6 +10,7 @@
     { "key": "TASK-009", "title": "Hardening pass: task-store findings from TASK-001 + TASK-002 reviews", "status": "todo", "priority": "low" },
     { "key": "TASK-010", "title": "Question engine core for project intake wizard", "status": "done", "priority": "high" },
     { "key": "TASK-011", "title": "Question library + project-type taxonomy + PROJECT.md schema/writer", "status": "done", "priority": "high" },
+    { "key": "TASK-012", "title": "bin/init.js entrypoint + CLAUDE.md first-chat routing for project intake", "status": "in_progress", "priority": "high" },
     { "key": "TASK-016", "title": "Hardening pass: PROJECT.md persistence from TASK-011 review", "status": "todo", "priority": "low" }
   ]
 }
