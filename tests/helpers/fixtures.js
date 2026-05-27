@@ -181,5 +181,7 @@ export const PROD = Object.freeze({
   transcript: prodUrl('transcript.js'),
   taskStore: prodUrl('task-store.js'),
   questionEngine: prodUrl('question-engine.js'),
+  questionLibrary: prodUrl('question-library.js'),
+  projectMd: prodUrl('project-md.js'),
   newTaskCli: binUrl('new-task.js'),
 });
