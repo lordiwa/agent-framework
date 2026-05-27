@@ -13,21 +13,29 @@
     "Unknown flag in argv throws clearly with the flag name in the error message (parity with `bin/new-task.js`).",
     "The existing 90 vitest specs continue to pass without modification — the new tests are additive."
   ],
-  "status": "in_progress",
+  "status": "done",
   "priority": "high",
   "labels": ["intake", "wizard", "entrypoint"],
   "assignee": "developer",
   "depends_on": ["TASK-010", "TASK-011"],
-  "linked_commits": [],
+  "linked_commits": [
+    "67f342e",
+    "5de16a9"
+  ],
   "linked_prs": [],
   "comments": [
     {
       "author": "orchestrator",
       "at": "2026-05-26T02:15:00Z",
       "body": "Created. Design fixed pre-tests: three-branch state machine (already_initialized / resumed / created / forced), CLI exports a testable `runInit({argv, prompter, repoRoot, now, hostname})` function so tests inject everything. Persistence lives inside the session bundle (state/sessions/<id>/intake.json) so a Ctrl+C in the middle of the wizard can be picked up on the next invocation without a manual flag. CLAUDE.md gets a new 'First-chat routing' section above RESUME FIRST so the orchestrator detects uninitialized repos before doing anything else. No --resume flag — auto-resume is the right default UX for non-technical users. Workflow: developer writes failing Vitest suite covering the 4 state-machine branches + flag parsing + CLAUDE.md routing check, then implements, then reviewer in fresh context."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-26T03:00:00Z",
+      "body": "Closed. Workflow: tests-first commit `67f342e` (8 failing specs in tests/init.spec.js + tests/helpers/scripted-prompter.js helper; phase-1 dev surfaced a real signature gap that startSession doesn't accept a hostname injection) + impl commit `5de16a9` (bin/init.js with the four-branch state machine, real readline prompter that handles enum/multi/string types, CLAUDE.md amendment placing '## First-chat routing' between the title and RESUME FIRST; impl commit body documents the hostname-dropped rationale, branch-ordering rationale, and the `*` marker decision per the discipline established in TASK-011). Reviewer in fresh context returned **APPROVE-WITH-FOLLOWUPS** (0 HIGH, 0 MEDIUM, 1 LOW, 2 NIT). 98/98 vitest specs green across two runs (~4.2s each), deterministic.\n\nOrchestrator decision documented in impl commit: dropped `hostname` from runInit's contract entirely after phase-1 dev correctly flagged that `startSession` calls `hostFingerprint()` directly via `os.hostname()` — extending startSession with a hostname injection point was scope creep, and the test fixtures don't assert on hostname anyway. JS silently ignores the extra `hostname` key passed by tests.\n\nAC coverage map: AC1 (runInit signature + return shape) — every test asserts on `{state, projectMdPath, sessionId}`; AC2 (already_initialized mutation-free) — `already_initialized_when_project_md_exists` (throwIfCalled prompter); AC3 (--force overwrites) — `forced_overwrites_existing_project_md`; AC4 (resume from partial intake, same bundle id) — `resumed_from_partial_intake`; AC5 (fresh-start creates new session) — `created_from_empty_repo`; AC6 (CLAUDE.md routing placement + body) — `claude_md_has_first_chat_routing_above_resume_first`; AC7 (tests cover all four branches) — confirmed by reviewer's branch-by-branch trace; AC8 (unknown flag throws with name) — `unknown_flag_throws_with_flag_name`; AC9 (no regression on 90 pre-existing) — 98/98 vs 90/90 baseline.\n\nReviewer finding rolled into TASK-015 (UX polish): the 1 LOW (positional tokens silently ignored by `bin/init.js`'s argv parser — `bin/new-task.js` throws on any unrecognized token regardless of `--` prefix; a typo like `node bin/init.js froce` would silently fall through). Same UX polish pass that fixes the TASK-010 dead-code can drop the `tok.startsWith('--')` guard for argv parity. The 2 NITs (already_initialized summary line not prefixed with `*`, realReadlinePrompter doesn't close its readline interface — pre-existing pattern from bin/new-task.js, parity confirmed) noted in-line, no follow-up needed.\n\nWizard chain progress after this close: TASK-010 done (engine), TASK-011 done (library + PROJECT.md), TASK-012 done (init + routing), TASK-013 next but blocked by TASK-016 (PROJECT.md hardening — gating per TASK-011 reviewer), TASK-014 + TASK-015 still queued. Non-chain open: TASK-003 (Jira mig, blocked on MCP creds), TASK-005 (npm audit), TASK-008 (TASK-004 polish), TASK-009 (task-store hardening), TASK-016 (PROJECT.md hardening)."
     }
   ],
   "created_at": "2026-05-26T02:15:00Z",
-  "updated_at": "2026-05-26T02:15:00Z",
+  "updated_at": "2026-05-26T03:00:00Z",
   "jira_key": null
 }
