@@ -1,0 +1,32 @@
+{
+  "key": "TASK-011",
+  "title": "Question library + project-type taxonomy + PROJECT.md schema/writer",
+  "description": "Second ticket in the project-intake wizard chain (TASK-010..015). Builds on `src/question-engine.js` (TASK-010) to deliver the actual question catalog the wizard will ask, the curated project-type taxonomy locked in the 2026-05-26 design conversation, and the PROJECT.md persistence layer that captures the answers.\n\nDeliverables:\n\n1. **`src/question-library.js`** — exports `COMMON_QUESTIONS` (≥6 questions covering project name, description, type, target_users, success_criteria, primary_use_cases) and `TYPE_SPECIFIC_QUESTIONS` (an object keyed by project_type values, each value an array of questions gated by `when: a => a.project_type === '<type>'`). Also exports a helper that returns the full combined array suitable for one `runQuestionnaire` invocation.\n\n2. **Project-type taxonomy** locked as the enum `['web-saas', 'cli-tool', 'data-pipeline', 'ml-model', 'library', 'other']`. Every type except 'other' has ≥3 type-specific questions; 'other' has 1 free-text question capturing the user's own description (LLM inference happens downstream in TASK-013).\n\n3. **`src/project-md.js`** — exports `writeProjectMd({repoRoot, answers, now})` and `readProjectMd({repoRoot})`. PROJECT.md lives at `<repoRoot>/PROJECT.md`. Format: minimal YAML frontmatter (name, type, created_at, schema_version) + markdown body with prose sections per answer. Round-trip lossless: write then read returns the same answers map.\n\n4. **`state/PROJECT.schema.json`** — JSON Schema for the frontmatter shape. `schema_version: 1` to enable future migration.\n\n5. **No external YAML dep.** Constrain the frontmatter to a subset (string-or-array-of-strings scalars) so we can write a 20-line in-house parser. Avoids dragging in js-yaml or gray-matter.\n\nAll writes go through `atomicWriteFile` from src/atomic-write.js. Question definitions reuse the engine's declarative shape; `when` predicates handle the project_type branching.",
+  "acceptance_criteria": [
+    "`src/question-library.js` exports `COMMON_QUESTIONS` (≥6 entries) and `TYPE_SPECIFIC_QUESTIONS` (object keyed by project_type values). A helper `buildIntakeQuestions()` returns the concatenated array ready for `runQuestionnaire`.",
+    "The `project_type` enum is exactly `['web-saas', 'cli-tool', 'data-pipeline', 'ml-model', 'library', 'other']` — verified by a test that asserts the literal array contents.",
+    "Every project_type except 'other' has ≥3 type-specific questions, each gated by `when: a => a.project_type === '<type>'`; the 'other' branch has exactly 1 free-text question for architecture description.",
+    "`src/project-md.js` exports `writeProjectMd({repoRoot, answers, now})` and `readProjectMd({repoRoot})`. Round-trip test: `writeProjectMd(answers)` then `readProjectMd()` returns an equivalent answers map (same keys, same values).",
+    "`writeProjectMd` uses `atomicWriteFile` from src/atomic-write.js — verified via `vi.mock('node:fs')` and the same fsync-before-rename invariant used in TASK-001 and TASK-010.",
+    "PROJECT.md format is documented in src/project-md.js with a working example and parses with the in-house minimal parser (no external dep added to package.json).",
+    "`state/PROJECT.schema.json` exists, declares `schema_version: 1` as required, and validates a freshly written PROJECT.md frontmatter via ajv (same pattern as `tests/live-state.spec.js`).",
+    "End-to-end test: run `runQuestionnaire(buildIntakeQuestions())` with a fake prompter scripted for the 'web-saas' branch, then `writeProjectMd(answers)`, then `readProjectMd`, then ajv-validate frontmatter. All steps succeed in one test."
+  ],
+  "status": "in_progress",
+  "priority": "high",
+  "labels": ["intake", "wizard", "taxonomy"],
+  "assignee": "developer",
+  "depends_on": ["TASK-010"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-26T01:15:00Z",
+      "body": "Created. Design fixed pre-tests: taxonomy enum locked as [web-saas, cli-tool, data-pipeline, ml-model, library, other]; questions are declarative (engine-compatible shape from TASK-010); type-specific branching uses `when: a => a.project_type === 'X'` so the whole intake runs in one engine invocation; PROJECT.md uses minimal YAML frontmatter (no external dep, in-house ~20-line parser constrained to string-or-array-of-strings scalars) + markdown body for prose. Workflow: developer writes failing Vitest suite covering all 8 ACs, then implements src/question-library.js + src/project-md.js + state/PROJECT.schema.json, then reviewer in fresh context. No bin/init.js wiring in this ticket — that's TASK-012."
+    }
+  ],
+  "created_at": "2026-05-26T01:15:00Z",
+  "updated_at": "2026-05-26T01:15:00Z",
+  "jira_key": null
+}
