@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-framework.local/state/PROJECT.schema.json",
+  "title": "PROJECT.md frontmatter",
+  "description": "Machine-readable subset of the project-intake answers persisted in PROJECT.md frontmatter. The body of PROJECT.md is human prose and intentionally out of scope of this schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "type", "created_at", "schema_version"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "type": "string",
+      "enum": ["web-saas", "cli-tool", "data-pipeline", "ml-model", "library", "other"]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    }
+  }
+}
