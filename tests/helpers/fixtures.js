@@ -184,4 +184,5 @@ export const PROD = Object.freeze({
   questionLibrary: prodUrl('question-library.js'),
   projectMd: prodUrl('project-md.js'),
   newTaskCli: binUrl('new-task.js'),
+  init: binUrl('init.js'),
 });
