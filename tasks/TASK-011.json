@@ -12,21 +12,29 @@
     "`state/PROJECT.schema.json` exists, declares `schema_version: 1` as required, and validates a freshly written PROJECT.md frontmatter via ajv (same pattern as `tests/live-state.spec.js`).",
     "End-to-end test: run `runQuestionnaire(buildIntakeQuestions())` with a fake prompter scripted for the 'web-saas' branch, then `writeProjectMd(answers)`, then `readProjectMd`, then ajv-validate frontmatter. All steps succeed in one test."
   ],
-  "status": "in_progress",
+  "status": "done",
   "priority": "high",
   "labels": ["intake", "wizard", "taxonomy"],
   "assignee": "developer",
   "depends_on": ["TASK-010"],
-  "linked_commits": [],
+  "linked_commits": [
+    "339d871",
+    "80972d9"
+  ],
   "linked_prs": [],
   "comments": [
     {
       "author": "orchestrator",
       "at": "2026-05-26T01:15:00Z",
       "body": "Created. Design fixed pre-tests: taxonomy enum locked as [web-saas, cli-tool, data-pipeline, ml-model, library, other]; questions are declarative (engine-compatible shape from TASK-010); type-specific branching uses `when: a => a.project_type === 'X'` so the whole intake runs in one engine invocation; PROJECT.md uses minimal YAML frontmatter (no external dep, in-house ~20-line parser constrained to string-or-array-of-strings scalars) + markdown body for prose. Workflow: developer writes failing Vitest suite covering all 8 ACs, then implements src/question-library.js + src/project-md.js + state/PROJECT.schema.json, then reviewer in fresh context. No bin/init.js wiring in this ticket — that's TASK-012."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-26T02:00:00Z",
+      "body": "Closed. Workflow: tests-first commit `339d871` (16 failing specs across 4 new test files; phase-1 dev surfaced the `language` id collision between cli-tool and library branches as a real blocker pre-impl) + impl commit `80972d9` (src/question-library.js + src/project-md.js + state/PROJECT.schema.json; per-branch namespacing applied to both `language` -> {cli_language, library_language} and `deployment_target` -> {web_deployment_target, ml_deployment_target}; in-house YAML parser constrained to scalar `key: value` + inline `key: [a, b, c]` arrays with nested-object rejection; single `BODY_SECTIONS` constant consumed by both writer and reader as the source-of-truth for the id↔section mapping; impl commit body documented all three decisions per the TASK-010 reviewer's lesson). Reviewer in fresh context returned **APPROVE-WITH-FOLLOWUPS** (0 HIGH, 1 MEDIUM, 4 LOW, 2 NIT). 90/90 vitest specs green in ~9.5s, atomic-write invariant verified, no external YAML dep added (package.json diff empty), schema validates a freshly-written PROJECT.md via ajv2020.\n\nAC coverage map: AC1 (COMMON_QUESTIONS ≥6 + TYPE_SPECIFIC_QUESTIONS + buildIntakeQuestions) — `common_questions_min_six`, `build_intake_questions_concatenates`; AC2 (taxonomy lock) — `taxonomy_enum_is_locked`; AC3 (≥3 per type, 'other'==1, when predicates) — `each_type_has_at_least_three_questions`, `when_predicate_gates_correctly`; AC4 (round-trip) — `round_trip_preserves_string_answers`, `round_trip_preserves_array_answers`, `readProjectMd_throws_clear_error_on_missing_file`; AC5 (atomic write) — `writeProjectMd_uses_atomic_write`; AC6 (in-house parser, no dep) — `in_house_parser_rejects_unsupported_yaml`, `frontmatter_uses_explicit_delimiters`; AC7 (schema validation) — `schema_validates_freshly_written_frontmatter`, `schema_requires_schema_version_field`, `schema_rejects_unknown_project_type`; AC8 (e2e) — `end_to_end_intake_for_web_saas`.\n\nReviewer findings rolled forward to TASK-016 (PROJECT.md hardening): MEDIUM (comma-in-array-item silent corruption — not reachable from wizard happy path today but a hazard once TASK-013 lands a non-wizard caller of writeProjectMd) + 4 LOWs (coerceFrontmatterScalar integer-string coercion risk for future fields, stack-value coercion asymmetry, silent default-empty-string fallback for missing project_name/project_type, comment misleading about colons in values). 2 NITs noted in-line. Question-library final counts: web-saas 4, cli-tool 3, data-pipeline 3, ml-model 4, library 3, other 1 — all branches meet the spec.\n\nDesign choice respected: phase-2 dev kept stack bullets in snake_case rather than humanizing (e.g. `- frontend_framework: react` not `- Frontend framework: React`). Defensible — humanizing+dehumanizing is irreversible for round-trip; TASK-015 (UX polish) can add a separate `label` field per question if pretty labels are wanted in PROJECT.md."
     }
   ],
   "created_at": "2026-05-26T01:15:00Z",
-  "updated_at": "2026-05-26T01:15:00Z",
+  "updated_at": "2026-05-26T02:00:00Z",
   "jira_key": null
 }

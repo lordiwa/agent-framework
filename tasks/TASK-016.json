@@ -1,0 +1,29 @@
+{
+  "key": "TASK-016",
+  "title": "Hardening pass: PROJECT.md persistence from TASK-011 review",
+  "description": "Follow-up polish for `src/project-md.js` and its in-house YAML frontmatter parser. None of these block correctness today (the wizard's own data path doesn't trip any of them), but TASK-013 (agent generator) will be the first non-wizard caller of `writeProjectMd` and several of these issues become reachable then.\n\n1. **Comma-in-array-item silent corruption (MEDIUM from TASK-011 review).** `tags: ['hello, world', 'plain']` round-trips as `['hello', 'world', 'plain']`. The writer emits inline arrays as `key: [item1, item2, item3]` and the reader splits on `,` without escape handling. Either escape commas in array items (e.g. percent-encode or backslash-escape) on write and unescape on read, OR reject commas at write time with a clear error and document the constraint in the module docstring. Either fix must keep round-trip lossless for all wizard-generated inputs.\n\n2. **`coerceFrontmatterScalar` integer-string coercion (LOW).** Today `schema_version: 1` benefits, but a future frontmatter field that legitimately needs string `\"1\"` (e.g. a versioned numeric tag) will silently become Number 1. Gate coercion on the schema's declared type — parse the schema once at module load and coerce only fields with `type: \"integer\"` or `type: \"number\"`.\n\n3. **Stack-value coercion asymmetry (LOW).** Stack values like `port: '8080'` round-trip as strings (correct for unknown keys), but the asymmetry vs. frontmatter scalars is undocumented. Add an inline comment in `parseStackValue` explaining the deliberate divergence so a future contributor doesn't \"fix\" it.\n\n4. **Silent default-empty-string fallback (LOW).** `writeProjectMd` will happily emit `name: \\ntype: \\n` if `project_name`/`project_type` are absent, then the downstream ajv validation rejects. Throw at write-time with `'missing required answer: <id>'` so bugs surface at the point of error.\n\n5. **Misleading colon comment (NIT).** `src/project-md.js:107` reads \"no quoting (values may not contain ':')\". Verified that values CAN contain `:` in BODY/Stack sections. Reword to clarify the constraint is frontmatter-only.\n\nReference: full reviewer report is summarized in the TASK-011 closing comment (2026-05-26T02:00:00Z).",
+  "acceptance_criteria": [
+    "`writeProjectMd` and `readProjectMd` round-trip lossless for array items containing commas — either via escape/unescape or via a write-time throw with a clear error.",
+    "`coerceFrontmatterScalar` consults `state/PROJECT.schema.json` for the field's declared type and only coerces numeric strings when the schema says the field is integer or number.",
+    "`parseStackValue` carries an inline comment naming the deliberate string-only handling for unknown keys.",
+    "`writeProjectMd` throws at write-time when required frontmatter answers (`project_name`, `project_type`) are missing or empty; error message names the missing field.",
+    "Comment at `src/project-md.js:107` (or wherever the colon constraint lives after this ticket) accurately describes that the constraint is frontmatter-only."
+  ],
+  "status": "todo",
+  "priority": "low",
+  "labels": ["hardening", "follow-up", "project-md"],
+  "assignee": null,
+  "depends_on": ["TASK-011"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-26T02:00:00Z",
+      "body": "Created from the TASK-011 reviewer audit (verdict APPROVE-WITH-FOLLOWUPS, 1 MEDIUM + 4 LOWs concerning src/project-md.js). All five rolled into this single ticket because they touch the same module and most share the same fix profile (schema-aware coercion + clearer error surfaces). Take BEFORE TASK-013 lands since TASK-013 will be the first non-wizard caller of writeProjectMd."
+    }
+  ],
+  "created_at": "2026-05-26T02:00:00Z",
+  "updated_at": "2026-05-26T02:00:00Z",
+  "jira_key": null
+}
