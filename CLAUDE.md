@@ -2,6 +2,12 @@
 
 This repository is operated by a multi-agent team built on the Claude Agent SDK. The main thread acts as the **Orchestrator** and delegates all substantive work to specialized subagents defined in `.claude/agents/`.
 
+## First-chat routing
+
+Before reading the RESUME FIRST section: if `PROJECT.md` does not exist in the repo root, the framework has not been initialized for this project. Direct the human to run `node bin/init.js` (the project intake wizard) before any other workflow step.
+
+`bin/init.js` will scaffold `PROJECT.md` (capturing project name, type, primary use cases, target users, and stack), create a fresh session bundle under `state/sessions/<id>/`, and leave the repo ready for orchestrator-driven work. If `PROJECT.md` already exists, init prints a one-line summary and exits without mutation.
+
 ## RESUME FIRST (do this before anything else in every new chat)
 
 Session state is split across two layers: a tiny **pointer file** at `state/session.json` (three fields: `schema_version`, `active_session_id`, `updated_at`) and a self-contained **bundle directory** at `state/sessions/<active_session_id>/`. The bundle holds the substantive orchestrator state (`workflow_step`, `handoff_summary`, `next_action`, `open_questions`, `blockers`, `decisions`, `subagent_results`, etc.) in its own `session.json`.
