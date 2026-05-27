@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-25T07:30:00Z",
+  "generated_at": "2026-05-26T00:00:00Z",
   "tasks": [
     { "key": "TASK-001", "title": "Wire local task store into the Orchestrator workflow", "status": "done", "priority": "high" },
     { "key": "TASK-002", "title": "Add a `new-task` helper script", "status": "done", "priority": "medium" },
@@ -7,6 +7,7 @@
     { "key": "TASK-004", "title": "Portable session bundles + lifecycle + lessons-learned KB", "status": "done", "priority": "high" },
     { "key": "TASK-005", "title": "Triage and fix 5 moderate npm audit findings", "status": "todo", "priority": "low" },
     { "key": "TASK-008", "title": "Polish pass: 5 LOW findings from TASK-004 review", "status": "todo", "priority": "low" },
-    { "key": "TASK-009", "title": "Hardening pass: task-store findings from TASK-001 + TASK-002 reviews", "status": "todo", "priority": "low" }
+    { "key": "TASK-009", "title": "Hardening pass: task-store findings from TASK-001 + TASK-002 reviews", "status": "todo", "priority": "low" },
+    { "key": "TASK-010", "title": "Question engine core for project intake wizard", "status": "in_progress", "priority": "high" }
   ]
 }

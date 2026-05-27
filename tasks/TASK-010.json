@@ -1,0 +1,31 @@
+{
+  "key": "TASK-010",
+  "title": "Question engine core for project intake wizard",
+  "description": "Generalize the prompter pattern from `bin/new-task.js` into a reusable question engine that the upcoming `init` wizard (TASK-012) and the existing `new-task` CLI both consume. This is the first ticket in the onboarding-wizard chain (TASK-010..015) that will let a non-technical user clone the framework and have it ask them what they want to build.\n\nThe engine must:\n- Accept a declarative array of questions with `{id, prompt, type, required, validate, enum, when}` fields.\n- Support sequence (ordered) and branching (`when(answers)` predicate gates the next question).\n- Re-prompt on validation failure with a human-readable message that names the field.\n- Persist partial answers atomically after each question so a Ctrl+C / crash resumes from the next unanswered question on the next invocation — uses `atomicWriteFile` from src/atomic-write.js, writes to a caller-supplied path so the wizard can scope it under `state/sessions/<id>/intake.json` and the new-task CLI can opt out of persistence with `persistTo: null`.\n- Be prompter-injectable so tests run with zero TTY (same pattern as `bin/new-task.js`).\n\nAs part of the same change, refactor `bin/new-task.js` to delegate to the new engine with its existing question set. This proves the generalization actually works against an existing caller and prevents two divergent prompter implementations from coexisting.\n\nReference: the design conversation that produced this ticket lives in the 2026-05-26 session — taxonomy (A) curated + escape hatch agreed, this is the first of six tickets (010 engine, 011 question library + PROJECT.md, 012 bin/init.js + routing, 013 agent generator, 014 backlog seeder, 015 UX polish).",
+  "acceptance_criteria": [
+    "`src/question-engine.js` exports `runQuestionnaire({questions, prompter, persistTo, now})` returning `Promise<{answers, completedAt}>` where `answers` is keyed by question `id`.",
+    "Question shape supports `{id, prompt, type, required, validate, enum, when}` with `type` in {'string','number','enum','multi'}; `when(answers)` returning false skips that question (branching).",
+    "Validation failure (required-but-empty, regex mismatch, enum mismatch, type mismatch) triggers a re-prompt with an error message containing the question's `id` or `prompt` text; the answer is not persisted until valid.",
+    "After each accepted answer, the in-progress `{answers, lastAnsweredId}` payload is written via `atomicWriteFile` to `persistTo` (when supplied). A second `runQuestionnaire` call with the same `persistTo` reads the existing file and resumes at the question immediately after `lastAnsweredId`.",
+    "`persistTo: null` (or omitted) disables persistence entirely; no temp files appear on disk for that run.",
+    "`bin/new-task.js` is refactored to delegate to `runQuestionnaire` for its title/description/AC-count/AC/priority prompt loop; the 4 pre-existing tests in `tests/new-task-cli.spec.js` pass without modification.",
+    "New `tests/question-engine.spec.js` covers: (a) sequence with all-string questions, (b) branching via `when`, (c) validation re-prompt path, (d) resume from a half-written persist file, (e) `persistTo: null` writes nothing, (f) atomic-write call ordering (fsync before rename via `vi.mock('node:fs')`)."
+  ],
+  "status": "in_progress",
+  "priority": "high",
+  "labels": ["intake", "wizard", "ergonomics"],
+  "assignee": "developer",
+  "depends_on": ["TASK-002"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-26T00:00:00Z",
+      "body": "Created from the 2026-05-26 design conversation. User wants the framework to be cloneable by a non-technical operator who is then walked through an intake wizard that configures agents and seeds a backlog. We rejected adopting GSD wholesale because of the .planning/ vs tasks/ state-model collision, so we are building our own intake on top of the primitives already in the repo: prompter pattern from bin/new-task.js, atomic writes from src/atomic-write.js, lifecycle bundles for resumability. This ticket is foundational — TASK-011 through TASK-015 all depend on the engine landing first. Workflow: developer writes failing Vitest suite covering all 7 ACs, then implements + refactors bin/new-task.js to delegate, then reviewer in fresh context."
+    }
+  ],
+  "created_at": "2026-05-26T00:00:00Z",
+  "updated_at": "2026-05-26T00:00:00Z",
+  "jira_key": null
+}
