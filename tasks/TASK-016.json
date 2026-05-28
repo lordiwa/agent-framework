@@ -9,21 +9,40 @@
     "`writeProjectMd` throws at write-time when required frontmatter answers (`project_name`, `project_type`) are missing or empty; error message names the missing field.",
     "Comment at `src/project-md.js:107` (or wherever the colon constraint lives after this ticket) accurately describes that the constraint is frontmatter-only."
   ],
-  "status": "todo",
+  "status": "done",
   "priority": "low",
-  "labels": ["hardening", "follow-up", "project-md"],
+  "labels": [
+    "hardening",
+    "follow-up",
+    "project-md"
+  ],
   "assignee": null,
-  "depends_on": ["TASK-011"],
-  "linked_commits": [],
+  "depends_on": [
+    "TASK-011"
+  ],
+  "linked_commits": [
+    "4a6c147",
+    "b9147a6"
+  ],
   "linked_prs": [],
   "comments": [
     {
       "author": "orchestrator",
       "at": "2026-05-26T02:00:00Z",
       "body": "Created from the TASK-011 reviewer audit (verdict APPROVE-WITH-FOLLOWUPS, 1 MEDIUM + 4 LOWs concerning src/project-md.js). All five rolled into this single ticket because they touch the same module and most share the same fix profile (schema-aware coercion + clearer error surfaces). Take BEFORE TASK-013 lands since TASK-013 will be the first non-wizard caller of writeProjectMd."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-27T00:00:00Z",
+      "body": "Transitioned to in_progress. Plan: spawn developer for tests-first (specs covering AC1..AC5 against src/project-md.js), then developer for impl, then reviewer in fresh context. All five fixes localized to src/project-md.js; no new modules, no research."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-27T00:30:00Z",
+      "body": "Reviewer verdict (fresh context): APPROVE-WITH-FOLLOWUPS. 0 HIGH, 0 MEDIUM, 3 LOW, 2 NIT. Re-ran npm test from clean state twice: 106/106 pass, ~5s, no flakes. All 5 ACs independently re-verified: AC1 round-trip probed out-of-band against the three orchestrator-specified inputs including the literal-backslash-and-comma edge case; on-disk encoding confirmed to contain literal , sequences. AC2 confirmed the schema is genuinely readFileSync-d at module load with graceful-degrade on missing/malformed schema. AC3 comment placement verified within the 500-char window. AC4 throw-before-disk-IO verified by probe — no partial PROJECT.md left behind on any of 5 bad-input shapes. AC5 grep for the misleading phrase returns zero matches across the file. The 3 LOWs (edge-whitespace trimming in splitInlineArray, empty-string-item array collapse, splitInlineArray comment slightly off from impl) and 2 NITs (unreachable lone-backslash recovery, test suite missing the [,, ,] edge case) are real but out of TASK-016 scope and not blockers for TASK-013. Deferred without new follow-up ticket — they can be picked up alongside TASK-015 UX polish if/when revisited. Commits: 4a6c147 (test) + b9147a6 (impl)."
     }
   ],
   "created_at": "2026-05-26T02:00:00Z",
-  "updated_at": "2026-05-26T02:00:00Z",
+  "updated_at": "2026-05-27T00:30:01Z",
   "jira_key": null
 }
