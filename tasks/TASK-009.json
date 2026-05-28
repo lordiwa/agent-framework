@@ -11,7 +11,7 @@
     "Both `buildIndexBytes` and `listTodos` sort by the trailing numeric portion of the key (not the full string), so `TASK-999` appears before `TASK-1000` in `index.json` and `listTodos` output; a regression test enforces this.",
     "`createTask` self-bootstraps `tasks/` via `mkdirSync(tasksDir, {recursive: true})` before the first atomic write so callers on a fresh repo (no prior task store) don't ENOENT. Drop the workaround `mkdirSync` in `src/backlog-seeder.js` once this AC lands."
   ],
-  "status": "todo",
+  "status": "done",
   "priority": "low",
   "labels": [
     "hardening",
@@ -22,7 +22,10 @@
   "depends_on": [
     "TASK-001"
   ],
-  "linked_commits": [],
+  "linked_commits": [
+    "e71c241",
+    "3190b2e"
+  ],
   "linked_prs": [],
   "comments": [
     {
@@ -39,9 +42,14 @@
       "author": "orchestrator",
       "at": "2026-05-27T02:30:00Z",
       "body": "Added AC7 from the TASK-014 reviewer audit: createTask must self-bootstrap tasks/ via mkdirSync so first-time callers on a fresh repo (notably backlog-seeder, but also bin/new-task.js on a wiped repo) do not ENOENT. The TASK-014 impl dev paper-mached the issue by adding the mkdir in src/backlog-seeder.js itself; that workaround is to be removed once AC7 lands. Reviewer classified MEDIUM. Same module + same fix profile as the other 6 ACs already here."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T01:30:00Z",
+      "body": "Reviewer verdict (fresh context): APPROVE. 0 HIGH, 0 MEDIUM, 1 LOW (out-of-scope: src/backlog-seeder.js readAllTasksSync uses a looser filter than the new TASK_FILENAME_RE in src/task-store.js — folded into TASK-017 since seeder hardening lives there), 4 NIT. Re-ran npm test from clean state twice: 172/172 pass, ~9.3s, no flakes. All 7 ACs independently traced AND probed out of band: AC1 drift-detect probed with index-claims-3-only-2-exist, ghost reaped on listTodos call; happy path byte-identical no-churn. AC2 single-writer comment present at module header + at each write call site. AC3 sweeper regex correctly reaps `.tmp.<hex>` and `.tmp.<hex>-<hex>` patterns while keeping legitimate files; index.json.tmp also reaped. AC4 listReady chain probed A->B->C, missing-dep-key correctly excludes. AC5 ajv-2020 validation throws BEFORE disk I/O on bad payload; on-disk bytes byte-identical post-failure. AC6 numeric sort verified on [1,2,10,100,1000] and degrades gracefully on malformed keys. AC7 createTask mkdir-self-bootstrap works on fresh tmp without tasks/; backlog-seeder workaround mkdirSync removed including unused import line. The 4 NITs are cosmetic (one typo \"staleley\", internal-only signature note, etc.). The 1 LOW deferred to TASK-017. Commits: e71c241 (test) + 3190b2e (impl)."
     }
   ],
   "created_at": "2026-05-25T06:30:00Z",
-  "updated_at": "2026-05-27T02:30:00Z",
+  "updated_at": "2026-05-28T01:30:01Z",
   "jira_key": null
 }

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-28T00:30:02Z",
+  "generated_at": "2026-05-28T01:30:02Z",
   "tasks": [
     {
       "key": "TASK-001",
@@ -40,7 +40,7 @@
     {
       "key": "TASK-009",
       "title": "Hardening pass: task-store findings from TASK-001 + TASK-002 reviews",
-      "status": "todo",
+      "status": "done",
       "priority": "low"
     },
     {
