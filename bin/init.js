@@ -35,6 +35,7 @@ import { runQuestionnaire } from '../src/question-engine.js';
 import { buildIntakeQuestions } from '../src/question-library.js';
 import { writeProjectMd, readProjectMd } from '../src/project-md.js';
 import { generateProjectContext } from '../src/agent-generator.js';
+import { seedBacklog } from '../src/backlog-seeder.js';
 
 const KNOWN_FLAGS = new Set(['--force', '--help']);
 
@@ -99,6 +100,10 @@ async function runWizardAndWriteProjectMd({ repoRoot, sessionId, prompter, now }
   // to read back from disk; this keeps init's "write once, read never"
   // semantics intact during the wizard run.
   await generateProjectContext({ repoRoot, answers, now });
+  // TASK-014 — mint the day-one starter backlog from the intake's
+  // primary_use_cases. seedBacklog is idempotent via the `seed` label: a
+  // --force re-run will not duplicate tickets the user has already touched.
+  await seedBacklog({ repoRoot, answers, now });
   return { projectMdPath: join(repoRoot, 'PROJECT.md') };
 }
 
