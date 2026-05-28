@@ -8,15 +8,27 @@
     "Any devDep version bumps required by the fix are documented in the commit body with the version delta and a one-line reason.",
     "package.json and package-lock.json are both committed in the same commit so they stay in sync."
   ],
-  "status": "todo",
+  "status": "done",
   "priority": "low",
-  "labels": ["chore", "dependencies", "security"],
+  "labels": [
+    "chore",
+    "dependencies",
+    "security"
+  ],
   "assignee": null,
-  "depends_on": ["TASK-004"],
+  "depends_on": [
+    "TASK-004"
+  ],
   "linked_commits": [],
   "linked_prs": [],
-  "comments": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T00:30:01Z",
+      "body": "Resolved all 5 moderate findings via npm overrides rather than --force-bumping vitest (which would have required 2.x to 4.x major upgrade, breaking changes). Approach: pin esbuild ^0.25.0 and vite ^6.4.2 in package.json overrides. Both vulnerabilities (esbuild GHSA-67mh-4wv8-2f99 devserver CORS, vite GHSA-4w7w-66w2-5vf9 path traversal in .map handling) are dev-server-only issues that do not affect this repo since vitest runs in one-shot `vitest run` mode and never starts a long-lived server. The overrides force the patched transitive versions into the lockfile while keeping vitest 2.1.9 stable. npm audit now reports 0 findings. npm test: 155/155 passing (no regression). package.json + package-lock.json committed together as required by AC4."
+    }
+  ],
   "created_at": "2026-05-24T00:00:00Z",
-  "updated_at": "2026-05-24T00:00:00Z",
+  "updated_at": "2026-05-28T00:30:02Z",
   "jira_key": null
 }
