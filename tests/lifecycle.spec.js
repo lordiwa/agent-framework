@@ -170,8 +170,10 @@ describe('AC5 — idempotency', () => {
       caught = e;
     }
     expect(caught, 'expected pauseSession to throw on ended bundle').toBeDefined();
-    // Stable error code per research §C.
-    expect(caught.code).toMatch(/^(?:E_LIFECYCLE|E_ENDED_NO_PAUSE|E_INVALID_TRANSITION)/);
+    // Stable error code per research §C. Pinned to the single code the
+    // implementation actually emits (TASK-008 LOW #5 polish — was a
+    // three-alternation regex).
+    expect(caught.code).toBe('E_INVALID_TRANSITION');
     // State untouched.
     expect(readFileSync(target, 'utf8')).toBe(before);
   });
