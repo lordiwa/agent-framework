@@ -188,4 +188,5 @@ export const PROD = Object.freeze({
   frameworkHistory: prodUrl('framework-history.js'),
   newTaskCli: binUrl('new-task.js'),
   init: binUrl('init.js'),
+  makeTemplate: binUrl('make-template.js'),
 });
