@@ -8,7 +8,7 @@
     "Each fix that lands has a corresponding test where it makes sense — particularly item #2 (distinct error codes for the no-bundle vs. ended-bundle cases) and item #5 (the tightened regex itself acts as the test).",
     "Item #1 (researcher Write scope) is the largest of the five and may need its own Orchestrator-side change beyond .claude/agents/. If the work scope grows past ~100 lines, split it into a separate ticket and link from here."
   ],
-  "status": "in_progress",
+  "status": "done",
   "priority": "low",
   "labels": [
     "chore",
@@ -20,10 +20,19 @@
   "depends_on": [
     "TASK-004"
   ],
-  "linked_commits": [],
+  "linked_commits": [
+    "59ff01b",
+    "3450cf3"
+  ],
   "linked_prs": [],
-  "comments": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T02:30:00Z",
+      "body": "Reviewer verdict (fresh context): APPROVE (PASS). 0 HIGH, 0 MEDIUM, 3 LOW. Re-ran npm test twice: 178/178 pass, ~9.5s, no flakes. All 5 LOWs traced AND probed out of band: LOW#1 researcher.md prose substantive (names SDK does not enforce, names Orchestrator-side enforcement), LOW#2 split-loader probed both branches (null pointer + ended -> E_NO_ACTIVE_SESSION; non-null pointer + ended -> E_INVALID_TRANSITION), LOW#3 summary.md write verified to go through atomicWriteFile via tmp+fsync+rename pattern, LOW#4 migrate.js comment substantive (names all 5 injected fields and the ...rest override semantics), LOW#5 tightened regex assertion now exact-match. The dev test-helper edit (setupBundle) flagged in advance was independently vindicated as defensible by reviewer — it preserves test intent under the new contract, weakens no assertion, and the dedicated null-pointer case is properly homed in lifecycle-polish.spec.js. 3 LOWs flagged but housekeeping only: (a) mtime-fallback branch in endSession is now untested (still live in production), (b) loadActiveBundleForPauseResume is a ceremonious one-liner, (c) unused pointerFilePath import in src/lifecycle.js. None blocking — deferred without new follow-up ticket per the close-pattern for sub-HIGH-MED reviewer findings. Commits: 59ff01b (test) + 3450cf3 (impl)."
+    }
+  ],
   "created_at": "2026-05-25T05:00:00Z",
-  "updated_at": "2026-05-28T02:00:00Z",
+  "updated_at": "2026-05-28T02:30:01Z",
   "jira_key": null
 }
