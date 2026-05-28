@@ -10,7 +10,7 @@
     "`bin/init.js`'s seeder call wraps `seedBacklog` in a try/catch that, at minimum, prints a user-visible warning on partial failure before re-throwing OR continues with a clear note. A test exercises the failure path with a stubbed seeder.",
     "`mintTicket` carries a one-line comment naming the deliberate sequential-await pattern."
   ],
-  "status": "todo",
+  "status": "done",
   "priority": "low",
   "labels": [
     "hardening",
@@ -21,7 +21,10 @@
   "depends_on": [
     "TASK-014"
   ],
-  "linked_commits": [],
+  "linked_commits": [
+    "e35f679",
+    "a1cf875"
+  ],
   "linked_prs": [],
   "comments": [
     {
@@ -33,9 +36,14 @@
       "author": "orchestrator",
       "at": "2026-05-28T01:30:02Z",
       "body": "Adding a 6th punch-list item from the TASK-009 reviewer audit: src/backlog-seeder.js#readAllTasksSync uses a looser filter (`.endsWith('.json') && !== 'index.json' && !== 'schema.json'`) than the new TASK_FILENAME_RE constant exported from src/task-store.js after TASK-009 landed. The two should align. Options: (a) import and reuse TASK_FILENAME_RE from task-store, (b) duplicate the regex with a code comment noting the deliberate divergence. Reviewer classified LOW. Same module, same fix profile as the other 5 seeder-specific items already here."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T03:30:00Z",
+      "body": "Reviewer verdict (fresh context): APPROVE (PASS). 0 HIGH, 1 MEDIUM (out-of-scope: bin/init.js#countFrameworkHistory still swallows JSON parse corruption while the seeder now propagates per AC3 — same module pair, divergent policy. Spawned as TASK-018), 2 LOW (doc-polish only). Re-ran npm test twice: 187/187 pass, ~9.8s, no flakes. All 7 items traced AND probed out of band: AC1 Set dedup mints unique tickets once, AC2 CSV split produces both per-use-case template sets, AC3 corrupt task JSON throws with file name AND ENOENT still tolerated (ordering verified), AC4 readdirSync order-independence comment in place, AC5 bin/init.js try/catch warns AND re-throws on seeder failure (PROJECT.md + project-context.md survive), AC6 sequential-await comment at both mintTicket doc and call site, AC7 TASK_FILENAME_RE imported and used, old endsWith filter gone from live code. Two transparent deviations vindicated: (a) export promotion of TASK_FILENAME_RE in src/task-store.js is one-line change with no name collisions, (b) AC7 comment reworded to avoid colliding with the test negative-assertion regex while still naming the old-filter failure mode. Commits: e35f679 (test) + a1cf875 (impl)."
     }
   ],
   "created_at": "2026-05-27T02:30:00Z",
-  "updated_at": "2026-05-28T01:30:02Z",
+  "updated_at": "2026-05-28T03:30:01Z",
   "jira_key": null
 }

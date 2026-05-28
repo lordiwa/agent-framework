@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-28T02:30:01Z",
+  "generated_at": "2026-05-28T05:57:44.888Z",
   "tasks": [
     {
       "key": "TASK-001",
@@ -88,6 +88,12 @@
     {
       "key": "TASK-017",
       "title": "Hardening pass: backlog seeder findings from TASK-014 review",
+      "status": "done",
+      "priority": "low"
+    },
+    {
+      "key": "TASK-018",
+      "title": "Align corruption-handling policy across bin/init.js#countFrameworkHistory and backlog seeder",
       "status": "todo",
       "priority": "low"
     }

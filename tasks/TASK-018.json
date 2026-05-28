@@ -1,0 +1,28 @@
+{
+  "key": "TASK-018",
+  "title": "Align corruption-handling policy across bin/init.js#countFrameworkHistory and backlog seeder",
+  "description": "Follow-up from the TASK-017 reviewer audit. After TASK-017 landed, the seeder (`src/backlog-seeder.js#readAllTasksSync`) propagates JSON.parse errors on corrupt task files (per AC3 — corruption surfaces so the user fixes the bytes rather than silently re-minting duplicates). However, `bin/init.js#countFrameworkHistory` — the archive-prompt peek that runs a few lines earlier in the same `runInit` invocation — still silently swallows the same class of error and treats the corrupt file as framework history.\n\n**Consequence**: during a single `runInit` invocation, a corrupt `tasks/TASK-NNN.json` silently inflates the archive prompt count (user sees 'Detected 18 pre-existing tickets'), user answers Y, archive runs (with its own catch in `archiveFrameworkHistory`), then the seeder fires and throws — leaving the user with a half-archived repo + a raised exception. The seeder's 'surface corruption immediately' intent is undermined by the earlier swallow.\n\n**The in-code comment self-justifies the swallow as 'consistent with archive'**, but the seeder's AC3 trumps that consistency rule. The right move is to align the peek with the seeder.\n\n**Two options for the IMPL dev to pick from:**\n- **(a) Align countFrameworkHistory to throw on parse error** — matches AC3 policy, surfaces corruption at the earliest possible point (BEFORE the archive prompt), gives the user a clear actionable error. Recommended.\n- **(b) Document the deliberate asymmetry at both call sites** — keeps the swallow but adds prose at countFrameworkHistory + at the seeder explaining why the two readers diverge intentionally. Weaker.\n\n**Plus two LOW doc-polish items from the same TASK-017 review:**\n- `src/backlog-seeder.js#readAllTasksSync` docstring still says 'Duplicated intentionally — the orchestrator forbade widening task-store's public API just for this one read.' After AC7 that's now actively misleading (the regex is DRY-imported now). 1-line fix.\n- `src/backlog-seeder.js:362` silent-ignore of unknown slugs (`if (!templates) continue; // Unknown use case slug — silently ignore.`) matches AC2's design lock but a future maintainer might think it's unintentional. Extend the inline comment to reference AC2's design lock.",
+  "acceptance_criteria": [
+    "`bin/init.js#countFrameworkHistory` no longer silently swallows JSON.parse failures from task files — either it throws (option a) or the deliberate swallow is documented at both call sites (option b). A regression test pins whichever choice is made.",
+    "If option (a) is chosen, the throw surfaces BEFORE the archive prompt fires (no partial-archive scenario possible). Test: pre-seed a corrupt task file in a tmp repo, run init in created branch, assert the error surfaces with the file name before any prompter call.",
+    "`src/backlog-seeder.js#readAllTasksSync` docstring is updated to reflect post-AC7 reality (uses imported TASK_FILENAME_RE, not duplicated).",
+    "`src/backlog-seeder.js:362` (the `// Unknown use case slug — silently ignore.` line) extends to reference TASK-017 AC2's design lock so the deliberate silent-ignore is unambiguous."
+  ],
+  "status": "todo",
+  "priority": "low",
+  "labels": ["hardening", "follow-up", "corruption-handling"],
+  "assignee": null,
+  "depends_on": ["TASK-015", "TASK-017"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T03:30:02Z",
+      "body": "Created from the TASK-017 reviewer audit (verdict PASS, 1 MEDIUM + 2 LOWs). The MEDIUM is a real policy divergence between countFrameworkHistory (silent swallow) and the seeder (propagate per TASK-017 AC3) — same module pair, same workflow invocation, but opposite policies. Reviewer recommended option (a) — align countFrameworkHistory to throw. The 2 LOWs are documentation-only polish picked up alongside since they touch the same files."
+    }
+  ],
+  "created_at": "2026-05-28T03:30:02Z",
+  "updated_at": "2026-05-28T03:30:02Z",
+  "jira_key": null
+}
