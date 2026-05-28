@@ -8,15 +8,22 @@
     "Each fix that lands has a corresponding test where it makes sense — particularly item #2 (distinct error codes for the no-bundle vs. ended-bundle cases) and item #5 (the tightened regex itself acts as the test).",
     "Item #1 (researcher Write scope) is the largest of the five and may need its own Orchestrator-side change beyond .claude/agents/. If the work scope grows past ~100 lines, split it into a separate ticket and link from here."
   ],
-  "status": "todo",
+  "status": "in_progress",
   "priority": "low",
-  "labels": ["chore", "polish", "debt", "task-004-followup"],
+  "labels": [
+    "chore",
+    "polish",
+    "debt",
+    "task-004-followup"
+  ],
   "assignee": null,
-  "depends_on": ["TASK-004"],
+  "depends_on": [
+    "TASK-004"
+  ],
   "linked_commits": [],
   "linked_prs": [],
   "comments": [],
   "created_at": "2026-05-25T05:00:00Z",
-  "updated_at": "2026-05-25T05:00:00Z",
+  "updated_at": "2026-05-28T02:00:00Z",
   "jira_key": null
 }

@@ -3,7 +3,7 @@
 // State transitions per research §C table.
 
 import {
-  existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync,
+  existsSync, mkdirSync, readFileSync, readdirSync, statSync,
 } from 'node:fs';
 import { join } from 'node:path';
 
@@ -14,6 +14,7 @@ import {
 } from './bundle.js';
 import { captureTranscriptRefs, snapshotTranscripts } from './transcript.js';
 import { generateSummary } from './summary.js';
+import { atomicWriteFile } from './atomic-write.js';
 
 /* -------------------------------------------------------------------------- */
 /*                                   start                                    */
@@ -109,7 +110,7 @@ export async function pauseSession({ repoRoot, handoffSummary, nextAction }) {
     throw makeErr('E_LIFECYCLE_ARGS', 'pauseSession: handoffSummary is required');
   }
 
-  const { sessionId, bundleState } = await loadActiveBundleWithFallback(repoRoot);
+  const { sessionId, bundleState } = await loadActiveBundleForPauseResume(repoRoot);
 
   if (bundleState.lifecycle_state === 'ended') {
     throw makeErr('E_INVALID_TRANSITION',
@@ -162,7 +163,7 @@ export async function pauseSession({ repoRoot, handoffSummary, nextAction }) {
 export async function resumeSession({ repoRoot }) {
   if (!repoRoot) throw makeErr('E_LIFECYCLE_ARGS', 'resumeSession: repoRoot is required');
 
-  const { sessionId, bundleState } = await loadActiveBundleWithFallback(repoRoot);
+  const { sessionId, bundleState } = await loadActiveBundleForPauseResume(repoRoot);
 
   if (bundleState.lifecycle_state === 'ended') {
     throw makeErr('E_INVALID_TRANSITION',
@@ -237,14 +238,15 @@ export async function endSession({ repoRoot, handoffSummary }) {
   // summary.md is generated from the bundle's session.json + lifecycle.log
   // and from each touched task's linked_commits. generateSummary is pure;
   // we do the actual write here so endSession owns the file-system side
-  // effects. Idempotency: end-on-ended returns above as a noop, so this
-  // path runs at most once per session — summary.md mtime is stable across
-  // any subsequent noop end calls.
+  // effects. Routed through atomicWriteFile (TASK-008 LOW #3) so the
+  // tmp+fsync+rename recipe is consistent with every other bundle write.
+  // Idempotency: end-on-ended returns above as a noop, so this path runs
+  // at most once per session — summary.md mtime is stable across any
+  // subsequent noop end calls.
   const summaryContent = generateSummary({ repoRoot, sessionId });
-  writeFileSync(
+  await atomicWriteFile(
     join(bundleDirFor(repoRoot, sessionId), 'summary.md'),
     summaryContent,
-    'utf8',
   );
 
   appendLifecycleLog(repoRoot, sessionId, {
@@ -329,11 +331,23 @@ async function loadActiveBundle(repoRoot) {
 }
 
 /**
- * Same as loadActiveBundle but, when the pointer's active_session_id is null,
- * falls back to the most-recently-modified bundle directory. This is what
- * pause/resume/end need so that "pause on ended" can find the ended bundle
- * (whose pointer was cleared by `end`) and surface E_INVALID_TRANSITION
- * instead of E_NO_ACTIVE_SESSION.
+ * Pause/resume bundle loader (TASK-008 LOW #2). No mtime-fallback: if the
+ * pointer is missing or null, surface E_NO_ACTIVE_SESSION rather than silently
+ * targeting the most-recently-modified bundle (which produced a confusing
+ * E_INVALID_TRANSITION when that bundle happened to be ended). Pause/resume
+ * require an explicit non-null pointer; the "ended bundle still reachable via
+ * pointer" branch keeps emitting E_INVALID_TRANSITION through the caller's
+ * lifecycle_state check.
+ */
+async function loadActiveBundleForPauseResume(repoRoot) {
+  return loadActiveBundle(repoRoot);
+}
+
+/**
+ * end-only bundle loader. Tolerates pointer=null by falling back to the
+ * most-recently-modified bundle on disk. This is what `endSession` needs so
+ * the idempotent end-on-ended noop branch can find the previously-ended
+ * bundle (whose pointer was cleared by the prior `end`).
  */
 async function loadActiveBundleWithFallback(repoRoot) {
   try {

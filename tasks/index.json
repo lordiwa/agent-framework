@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-28T01:30:02Z",
+  "generated_at": "2026-05-28T02:00:00Z",
   "tasks": [
     {
       "key": "TASK-001",
@@ -34,7 +34,7 @@
     {
       "key": "TASK-008",
       "title": "Polish pass: 5 LOW findings from TASK-004 review",
-      "status": "todo",
+      "status": "in_progress",
       "priority": "low"
     },
     {

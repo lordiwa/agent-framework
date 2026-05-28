@@ -78,6 +78,13 @@ export async function liftV1ToV2({ repoRoot, v1Payload }) {
 
   // Bundle session payload — v1 shape with schema_version=2, plus session_id and lifecycle_state.
   const { version: _v1, ...rest } = v1Payload;
+  // Deliberate non-verbatim defaults: research §B describes the lift as
+  // preserving the v1 payload "verbatim with an added session_id", but in
+  // practice we also inject lifecycle_state: 'active' and empty defaults for
+  // open_questions, blockers, decisions, subagent_results, and
+  // pending_human_confirmation so the v2 bundle is well-formed even when the
+  // v1 payload pre-dates those fields. `...rest` last lets a v1 payload that
+  // already carries any of these keys override the defaults.
   const bundlePayload = {
     schema_version: 2,
     session_id: sessionId,

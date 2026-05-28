@@ -30,10 +30,15 @@ function setupBundle(label, lifecycleState = 'active') {
   } else {
     seedBundleInState(dir, lifecycleState, { session_id: id });
   }
+  // Pointer points at the bundle for all lifecycle states. The earlier
+  // "null pointer + ended bundle" wiring was incidental — it leaned on the
+  // mtime fallback in loadActiveBundleWithFallback. TASK-008 LOW #2 removes
+  // that fallback for pause/resume so the helper now reflects the canonical
+  // shape: pointer always references the bundle whose lifecycle_state is
+  // under test. The dedicated null-pointer case lives in
+  // tests/lifecycle-polish.spec.js.
   makeRepoSkeleton(repoDir, {
-    pointer: lifecycleState === 'ended'
-      ? { schema_version: 2, active_session_id: null, updated_at: '2026-05-24T12:00:00Z' }
-      : { schema_version: 2, active_session_id: id, updated_at: '2026-05-24T12:00:00Z' },
+    pointer: { schema_version: 2, active_session_id: id, updated_at: '2026-05-24T12:00:00Z' },
   });
   return { repoDir, id, dir };
 }
