@@ -1,0 +1,30 @@
+{
+  "key": "TASK-021",
+  "title": "Plugin chain P1: scaffold the Claude Code plugin (manifest + marketplace + component relocation)",
+  "description": "First ticket of the plugin packaging chain (epic TASK-020). Stand up the plugin skeleton per `tasks/TASK-020.research.md` §A. Create `.claude-plugin/plugin.json` (name `agentic-framework`, `mcpServers: \"./.mcp.json\"`, `version` left unset during dev for commit-SHA versioning per §A.2) and `.claude-plugin/marketplace.json` (same-repo single-plugin layout, `source: \"./\"`, per §A.3). Relocate the four agents and the skills to the **plugin root** `agents/` and `skills/` (NOT under `.claude/` — the plugin loader expects them at root, §A.4). Add a `commands/` dir. Per the human decision, **exclude `bin/make-template.js` from the shipped plugin `bin/`** (it's a publish-time dev scrub tool; keep it in the repo for publish use only).\n\n**Critical constraint — do not break THIS repo's own agent usage.** This repo is simultaneously the framework's dev environment (it uses `.claude/agents/orchestrator|developer|reviewer|researcher.md` right now) AND the plugin source. A naive move of `.claude/agents/` → `agents/` would strip the dev repo of the agents we use to build it. The scaffold must preserve dev-repo agent availability — e.g. keep the dev repo loadable via `claude --plugin-dir .` (self-install), or retain a dev copy, or document the dev workflow change. Resolve this explicitly; do not silently break it.\n\n**Verification uses the non-interactive CLI** confirmed in §D.5: `claude plugin validate`, `claude plugin install <p>@<local-marketplace>`, `claude plugin details`, `claude plugin uninstall`.",
+  "acceptance_criteria": [
+    "`.claude-plugin/plugin.json` exists with name `agentic-framework` and `mcpServers: \"./.mcp.json\"`; `claude plugin validate <repo>` passes (warnings OK, no errors).",
+    "`.claude-plugin/marketplace.json` exists with `source: \"./\"` and a valid `owner`; validate passes.",
+    "The four agents live at plugin-root `agents/` and the skills at plugin-root `skills/`. Installing from a local marketplace and running `claude plugin details agentic-framework` lists Agents (4) and the skills with zero manifest errors. (Document the exact commands + observed inventory in the ticket close.)",
+    "`bin/make-template.js` is NOT part of the shipped plugin `bin/`; `bin/init.js` and `bin/new-task.js` are. A test or documented check confirms the shipped bin set.",
+    "This repo's own agent usage is preserved (dev workflow documented): spawning the orchestrator/developer/reviewer/researcher still works for framework development after the relocation. State the mechanism chosen.",
+    "Throwaway install artifacts are cleaned up (uninstall + marketplace remove) so the verification leaves no residue in user plugin config; chain follow-ups can re-run the same sensor."
+  ],
+  "status": "todo",
+  "priority": "high",
+  "labels": ["plugin", "distribution", "plugin-chain", "scaffold"],
+  "assignee": null,
+  "depends_on": [],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T22:40:00Z",
+      "body": "Minted from TASK-020 spike §F (P1) + §A. Foundation ticket — no deps. The dev-repo-agent-preservation constraint (AC5) is the non-obvious risk: don't break the agents we use to build the framework while relocating them to the plugin layout."
+    }
+  ],
+  "created_at": "2026-05-28T22:40:00Z",
+  "updated_at": "2026-05-28T22:40:00Z",
+  "jira_key": null
+}

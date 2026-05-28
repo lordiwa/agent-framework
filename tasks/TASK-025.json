@@ -1,0 +1,28 @@
+{
+  "key": "TASK-025",
+  "title": "Plugin chain P5: orchestrator ship + activation (generated project CLAUDE.md + backstop skill + reconcile orchestrator.md)",
+  "description": "Fifth ticket of the plugin packaging chain (epic TASK-020). Per `tasks/TASK-020.research.md` §C and §H. The blocking constraint: a plugin-root `CLAUDE.md` is NOT loaded as context, so the orchestrator (RESUME FIRST + First-chat routing) must be activated another way. Recommended approach (Option 3): `/init-project` generates/merges a project-level `CLAUDE.md`, backed by an always-on routing skill.\n\n**Human decision locked:** the project-CLAUDE.md write uses **PROMPT-ONCE then marker-delimited merge** — ask the user before the first write; if they consent, append a fenced `<!-- BEGIN agentic-framework routing -->` / `<!-- END agentic-framework routing -->` block; re-runs replace ONLY that block; the user's existing content is never clobbered.\n\nScope:\n1. `/init-project` (P4) writes the RESUME-FIRST four-step sequence + First-chat routing + workflow loop + repo etiquette into `${CLAUDE_PROJECT_DIR}/CLAUDE.md`: if absent → full block (after prompt); if present → prompt once, then marker-merge.\n2. Ship an always-on routing backstop skill (`skills/orchestrator-routing/SKILL.md`) carrying the RESUME-FIRST sequence, for the 'installed but not yet init-ed, fresh chat' case.\n3. **Reconcile `agents/orchestrator.md` with the v2 pointer/bundle contract (§H)** — the current file still documents the v1 single-file `state/session.json` + `state/sessions/<updated_at>.json` archive model, which contradicts `CLAUDE.md` + `state/README.md`. Shipping the stale text would propagate the wrong session model into every user project.",
+  "acceptance_criteria": [
+    "init-project writes RESUME-FIRST + First-chat routing into ${CLAUDE_PROJECT_DIR}/CLAUDE.md. Tests cover four cases: (a) absent → prompt then full block; (b) present + consent → prompt then marker-delimited append; (c) present + decline → no write; (d) re-run → replaces ONLY the marked block, idempotent.",
+    "Collision safety: a user CLAUDE.md with pre-existing content is preserved byte-for-byte OUTSIDE the marker block across an init and a re-init. Test asserts this.",
+    "An always-on routing backstop skill ships (skills/orchestrator-routing/) carrying the RESUME-FIRST sequence; `claude plugin details` shows it in the inventory.",
+    "`agents/orchestrator.md` is reconciled to the v2 pointer/bundle model — a grep confirms zero remaining references to the v1 single-file session.json / <updated_at>.json archive scheme, and the agent text matches the contract in CLAUDE.md + state/README.md."
+  ],
+  "status": "todo",
+  "priority": "high",
+  "labels": ["plugin", "distribution", "plugin-chain", "orchestrator"],
+  "assignee": null,
+  "depends_on": ["TASK-024"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T22:40:00Z",
+      "body": "Minted from TASK-020 spike §F (P5) + §C/§H. Carries the human-locked CLAUDE.md policy (prompt-once-then-marker-merge). AC4 reconciles the stale v1 orchestrator.md — the spike flagged this as the highest-risk correctness item in the whole package; do not ship it unreconciled."
+    }
+  ],
+  "created_at": "2026-05-28T22:40:00Z",
+  "updated_at": "2026-05-28T22:40:00Z",
+  "jira_key": null
+}

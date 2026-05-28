@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-28T21:40:00Z",
+  "generated_at": "2026-05-28T22:40:00Z",
   "tasks": [
     {
       "key": "TASK-001",
@@ -102,6 +102,54 @@
       "title": "Template-prep command — produce a pristine clone-ready distribution from the dev repo",
       "status": "done",
       "priority": "medium"
+    },
+    {
+      "key": "TASK-020",
+      "title": "Architecture spike: package the framework as a Claude Code plugin (with an MCP seam for later broadening)",
+      "status": "done",
+      "priority": "high"
+    },
+    {
+      "key": "TASK-021",
+      "title": "Plugin chain P1: scaffold the Claude Code plugin (manifest + marketplace + component relocation)",
+      "status": "todo",
+      "priority": "high"
+    },
+    {
+      "key": "TASK-022",
+      "title": "Plugin chain P2: repoRoot retargeting — operate on the user's project, not the plugin dir",
+      "status": "todo",
+      "priority": "high"
+    },
+    {
+      "key": "TASK-023",
+      "title": "Plugin chain P3: runtime dependency packaging (ajv/ajv-formats/gray-matter resolution at the user's machine)",
+      "status": "todo",
+      "priority": "high"
+    },
+    {
+      "key": "TASK-024",
+      "title": "Plugin chain P4: /init-project bootstrap slash command",
+      "status": "todo",
+      "priority": "high"
+    },
+    {
+      "key": "TASK-025",
+      "title": "Plugin chain P5: orchestrator ship + activation (generated project CLAUDE.md + backstop skill + reconcile orchestrator.md)",
+      "status": "todo",
+      "priority": "high"
+    },
+    {
+      "key": "TASK-026",
+      "title": "Plugin chain P6: MCP task-store server (the broaden-to-non-Code seam)",
+      "status": "todo",
+      "priority": "medium"
+    },
+    {
+      "key": "TASK-027",
+      "title": "Plugin chain P7: end-to-end install test + non-technical quickstart docs + publish prep",
+      "status": "todo",
+      "priority": "high"
     }
   ]
 }

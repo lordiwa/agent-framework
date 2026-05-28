@@ -1,0 +1,28 @@
+{
+  "key": "TASK-027",
+  "title": "Plugin chain P7: end-to-end install test + non-technical quickstart docs + publish prep",
+  "description": "Final ticket of the plugin packaging chain (epic TASK-020). Per `tasks/TASK-020.research.md` §F (P7). Prove the whole 'open Claude, install, develop' experience works clean, write the non-technical quickstart, and resolve the deferred publish-time decisions.\n\nScope:\n1. A documented clean E2E run: `claude plugin marketplace add` → `install agentic-framework@<marketplace>` → `/agentic-framework:init-project` → confirm PROJECT.md + seeded backlog + session bundle + the project CLAUDE.md routing block all land in the user's project → run ONE trivial orchestrated task through the full loop (tests-first → impl → review → done) to prove the agent team activates from the installed plugin.\n2. A non-technical quickstart (README section or docs/) walking clone-free install → init → first chat, with zero internal jargon.\n3. **Resolve the deferred publish decisions:** marketplace hosting + name (this repo as the public marketplace via `source: \"./\"`, or a separate catalog repo — TASK-020 §I Q5), and whether to set an explicit `version` at first release vs continue commit-SHA versioning (§I Q6).\n4. Confirm `bin/make-template.js` run at publish time leaves the shipped plugin free of dev tickets/state (ties to the TASK-019 template-prep tool — this is the publish-time use that justified keeping make-template in the repo but out of the shipped bin/).",
+  "acceptance_criteria": [
+    "A documented clean-machine E2E: add marketplace → install → /init-project produces a populated project (PROJECT.md, seeded backlog, session bundle, CLAUDE.md routing block) → one trivial task is driven to `done` through the orchestrated tests-first→impl→review loop using the installed plugin's agents. Steps + observed results recorded.",
+    "A non-technical quickstart exists (README or docs/) covering install → init → first chat with no internal jargon; a reader who has never seen the repo can follow it.",
+    "Marketplace hosting + name finalized and reflected in `.claude-plugin/marketplace.json`; the `version` strategy for first release is decided and applied.",
+    "Publish-prep confirmed: running `bin/make-template.js --yes` at publish time yields a shipped plugin carrying zero dev tickets/state (verified against the TASK-019 pristine-template guarantees)."
+  ],
+  "status": "todo",
+  "priority": "high",
+  "labels": ["plugin", "distribution", "plugin-chain", "docs", "e2e"],
+  "assignee": null,
+  "depends_on": ["TASK-025", "TASK-026"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T22:40:00Z",
+      "body": "Minted from TASK-020 spike §F (P7). The proof-it-all-works capstone. Depends on P5 (orchestrator activation) and P6 (MCP). Carries the deferred publish decisions (marketplace hosting/name §I Q5, versioning §I Q6) so they're resolved with full implementation context rather than guessed up front. Ties back to TASK-019 (make-template) as the publish-time scrub."
+    }
+  ],
+  "created_at": "2026-05-28T22:40:00Z",
+  "updated_at": "2026-05-28T22:40:00Z",
+  "jira_key": null
+}

@@ -1,0 +1,28 @@
+{
+  "key": "TASK-023",
+  "title": "Plugin chain P3: runtime dependency packaging (ajv/ajv-formats/gray-matter resolution at the user's machine)",
+  "description": "Third ticket of the plugin packaging chain (epic TASK-020). Per `tasks/TASK-020.research.md` §B.4: `src/task-store.js` imports `ajv` + `ajv-formats` at module load (and gray-matter patterns are used elsewhere) — but these are currently in `devDependencies`, and an installed plugin's dir is copied to the cache **without** running `npm install`, so `node_modules` won't exist next to the cached `src/`. The init path runs that code on the USER's machine, so the deps must resolve there.\n\nScope:\n1. Move `ajv`, `ajv-formats`, `gray-matter` from `devDependencies` to `dependencies`.\n2. Implement the documented `${CLAUDE_PLUGIN_DATA}` first-run install pattern (§B.4 option 2): a `SessionStart` hook diffs the bundled `package.json` against a copy in `${CLAUDE_PLUGIN_DATA}`, runs `npm install` there when they differ, and wires `NODE_PATH=${CLAUDE_PLUGIN_DATA}/node_modules` for the `bin/` + MCP subprocesses. Survives plugin updates; no repo bloat.\n3. Vendoring (esbuild single-file bundle) is the documented alternative if first-run latency is unacceptable — note the trade-off and the fallback path.",
+  "acceptance_criteria": [
+    "`ajv`, `ajv-formats`, and `gray-matter` are in `dependencies` (not `devDependencies`); `package.json` remains valid and the existing test suite still passes.",
+    "A mechanism resolves these runtime deps on a user machine WITHOUT a manual `npm install` step — either the ${CLAUDE_PLUGIN_DATA} first-run install (with NODE_PATH wiring) or a vendored bundle. The chosen mechanism is implemented and documented.",
+    "A test or reproducible simulation proves `src/task-store.js` (which imports ajv at load) imports successfully when run with NODE_PATH pointing at the data-dir node_modules (i.e. with no node_modules adjacent to src/).",
+    "First-run latency of the chosen mechanism is measured/estimated and recorded; if it triggers the vendoring fallback, that decision is documented."
+  ],
+  "status": "todo",
+  "priority": "high",
+  "labels": ["plugin", "distribution", "plugin-chain", "packaging"],
+  "assignee": null,
+  "depends_on": ["TASK-022"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T22:40:00Z",
+      "body": "Minted from TASK-020 spike §F (P3) + §B.4. This is the packaging bug the audit surfaced (AC15 of the §B.2 table). Gates both P4 (init runs task-store on the user machine) and P6 (MCP server imports task-store)."
+    }
+  ],
+  "created_at": "2026-05-28T22:40:00Z",
+  "updated_at": "2026-05-28T22:40:00Z",
+  "jira_key": null
+}

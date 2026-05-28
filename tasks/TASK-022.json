@@ -1,0 +1,28 @@
+{
+  "key": "TASK-022",
+  "title": "Plugin chain P2: repoRoot retargeting — operate on the user's project, not the plugin dir",
+  "description": "Second ticket of the plugin packaging chain (epic TASK-020). Per `tasks/TASK-020.research.md` §B: when installed, the plugin code lives in an immutable cache dir, but all project I/O must target the **user's** project root (`${CLAUDE_PROJECT_DIR}`), never the plugin's own location. The audit (§B.2) found the blast radius is small — only the `bin/` CLI shells bind `process.cwd()`; every `src/` function already takes `repoRoot`.\n\nScope:\n1. Bind the shipped `bin/` shells (`init.js`, `new-task.js`) to `process.env.CLAUDE_PROJECT_DIR ?? process.cwd()`. The exported `runInit`/`runCli` are already fully `repoRoot`-parameterized — only the shell binding changes. (make-template excluded from ship per P1, but if it stays in the repo, apply the same fallback for dev use.)\n2. **Empirically verify** (§B.3 caveat / §I Q1) whether `CLAUDE_PROJECT_DIR` is actually set in the **Bash-tool subprocess** environment on this machine — the docs guarantee it for hook/MCP subprocesses but not verbatim for Bash-tool calls. If it is NOT set, implement the documented fallback: a `SessionStart` hook that derives/exports the project dir, or route init exclusively through the slash command. Record the empirical result.\n3. Confirm the framework-asset reads (`src/task-store.js` → `../tasks/schema.json`; `src/project-md.js` → `../state/PROJECT.schema.json`, §B.2 #8/#9) still resolve INSIDE the plugin cache after the §A.4 layout (intra-plugin relative reads are preserved; only outside-plugin `../` traversal is blocked).",
+  "acceptance_criteria": [
+    "`bin/init.js` and `bin/new-task.js` resolve `repoRoot` from `process.env.CLAUDE_PROJECT_DIR` with a `process.cwd()` fallback. Unit tests assert BOTH branches (env var present → uses it; absent → falls back to cwd).",
+    "The empirical question 'is CLAUDE_PROJECT_DIR present in a Bash-tool subprocess?' is answered with a recorded result. If absent, a SessionStart-hook (or equivalent) fallback is implemented and tested so the project root is still discoverable.",
+    "Framework-asset reads (tasks/schema.json, state/PROJECT.schema.json) are confirmed resolvable from their src/ modules under the plugin-root layout — a test loads task-store.js + project-md.js and confirms schema resolution does not throw.",
+    "No regression: the full existing suite passes, and `runInit`/`runCli` still work when given an explicit `repoRoot` (the dev/test path)."
+  ],
+  "status": "todo",
+  "priority": "high",
+  "labels": ["plugin", "distribution", "plugin-chain", "retargeting"],
+  "assignee": null,
+  "depends_on": ["TASK-021"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T22:40:00Z",
+      "body": "Minted from TASK-020 spike §F (P2) + §B. The meatiest design section, but the impl is small per the audit. AC2's empirical CLAUDE_PROJECT_DIR check is the gating unknown — verify before assuming the fallback is unnecessary."
+    }
+  ],
+  "created_at": "2026-05-28T22:40:00Z",
+  "updated_at": "2026-05-28T22:40:00Z",
+  "jira_key": null
+}

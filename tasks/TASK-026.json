@@ -1,0 +1,28 @@
+{
+  "key": "TASK-026",
+  "title": "Plugin chain P6: MCP task-store server (the broaden-to-non-Code seam)",
+  "description": "Sixth ticket of the plugin packaging chain (epic TASK-020). Per `tasks/TASK-020.research.md` §E. This is the 'broaden later' seam — it branches off P3 and is the one piece deferrable without blocking the core 'install and develop' experience for Claude Code devs. Implement an MCP server bundled in the plugin that exposes the task store as tools, so a non-Claude-Code client (claude.ai/Desktop) can read and mutate the backlog.\n\nScope:\n1. `src/mcp-server.js` exposing six tools (thin wrappers over existing `src/task-store.js`): `list_todos`, `list_ready`, `get_task`, `create_task`, `transition_status`, `append_comment` (full arg/return contract in §E.1). Each binds `repoRoot` to the project root the server was launched against (`${CLAUDE_PROJECT_DIR}`).\n2. `.mcp.json` at the plugin root registering the server via `${CLAUDE_PLUGIN_ROOT}/src/mcp-server.js` with `NODE_PATH` from P3's data-dir.\n3. Tool names mirror the Jira-compatible field names already in `tasks/schema.json`, so the surface survives the eventual Atlassian-MCP migration (backend swaps; tool names stay).\n\n**Scope boundary:** this exposes the ticket store only. It explicitly does NOT attempt to port the orchestrator/subagent loop or RESUME-FIRST orchestration — those are Claude Code-exclusive (§E.2). Document the WILL/WON'T for non-Code clients.",
+  "acceptance_criteria": [
+    "`src/mcp-server.js` exposes list_todos, list_ready, get_task, create_task, transition_status, append_comment, each wrapping the corresponding task-store.js function and binding repoRoot to ${CLAUDE_PROJECT_DIR}.",
+    "`.mcp.json` at the plugin root registers the server; after install `claude plugin details` shows MCP servers (1) with no startup errors.",
+    "A test round-trips through the tools against a temp-project task store: create_task → list_todos shows it → transition_status to done → get_task reflects the new status.",
+    "The server's docstring/README states the explicit WILL/WON'T for a non-Claude-Code client (gets ticket CRUD; does NOT get the orchestrator/subagent loop or RESUME-FIRST orchestration)."
+  ],
+  "status": "todo",
+  "priority": "medium",
+  "labels": ["plugin", "distribution", "plugin-chain", "mcp"],
+  "assignee": null,
+  "depends_on": ["TASK-023"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T22:40:00Z",
+      "body": "Minted from TASK-020 spike §F (P6) + §E. Medium priority — branches off P3 and is deferrable per the 'devs now, broaden later' direction. Rejoins the chain at P7's E2E. Tool surface intentionally mirrors Jira field names for loss-free TASK-003 migration later."
+    }
+  ],
+  "created_at": "2026-05-28T22:40:00Z",
+  "updated_at": "2026-05-28T22:40:00Z",
+  "jira_key": null
+}

@@ -1,0 +1,47 @@
+{
+  "key": "TASK-020",
+  "title": "Architecture spike: package the framework as a Claude Code plugin (with an MCP seam for later broadening)",
+  "description": "**Strategic direction (decided 2026-05-28):** distribute the framework as a Claude Code **plugin** so a developer can `/plugin install agentic-framework@<marketplace>` and be ready to develop from scratch — install, run the intake, get agents configured + a seeded backlog, then drive the orchestrated dev loop. Target surface: **Claude Code devs now, broaden to non-Code clients (claude.ai/Desktop) later** via a bundled MCP server seam.\n\n**Hard constraint confirmed via claude-code-guide (cited docs):** the Agent-tool subagent orchestration (orchestrator spawning developer/reviewer/researcher in fresh contexts) is **exclusive to Claude Code**. MCP servers cannot install or activate subagents — they're file-based `.claude/agents/` constructs. So MCP-only would throw away the framework's core; the plugin is the correct primary vehicle, and the MCP server is a complementary seam (task-store tools) for the future non-Code experience.\n\n**Why a spike before implementation tickets:** two questions must be answered before we build, or we build the wrong foundation:\n1. **repoRoot retargeting** — today every entrypoint (`bin/init.js`, `src/{lifecycle,task-store,backlog-seeder,agent-generator,project-md,framework-history}.js`, `state/` + `tasks/` layout) implicitly treats the framework's OWN repo as the project. As an installed plugin, the framework code ships inside the plugin dir while it must operate on the **user's** project root (cwd). `repoRoot` is already a parameter on most functions (good), but the CLI shells bind `process.cwd()`, `state/`/`tasks/` live at the framework root, and `CLAUDE.md` routing assumes co-location. The retargeting strategy is the meatiest unknown.\n2. **Orchestrator ship + activation** — the orchestrator IS `CLAUDE.md` (RESUME FIRST + First-chat routing). How does that ship and activate in an arbitrary user project? Options to evaluate: a generated project-level `CLAUDE.md`, a plugin skill that injects the routing, or a slash command that bootstraps it. Must work when the user's project has its own unrelated `CLAUDE.md`.\n\n**This ticket is a read-only research/spike** — it produces a design artifact and a throwaway proof-of-load, NOT production code. Implementation lands in the follow-up chain this spike defines.\n\n**Expected (spike will firm up) downstream chain:** (1) plugin scaffold + manifest; (2) repoRoot retargeting; (3) intake as a `/init-project` slash command; (4) orchestrator ship + activation; (5) MCP server for the task store (broaden-later seam); (6) E2E install test + non-technical quickstart docs.",
+  "acceptance_criteria": [
+    "A design doc at `tasks/TASK-020.research.md` (mirroring the `tasks/TASK-004.research.md` artifact pattern) specifying: the plugin manifest (`.claude-plugin/plugin.json`) + `marketplace.json` + the full plugin directory layout for THIS framework (where `agents/`, `skills/`, `commands/`, `bin/`, `src/`, and any bundled `.mcp.json` go), citing current Claude Code plugin docs.",
+    "The doc specifies a concrete repoRoot-retargeting strategy: an explicit audit table of every src/ + bin/ location that assumes the framework repo is the project, and how each is made to operate on the user's project root when installed as a plugin. Must address where the user's `state/` and `tasks/` live and how `bin/` shells discover the project root.",
+    "The doc specifies how the orchestrator (CLAUDE.md RESUME FIRST + First-chat routing) ships and activates in an arbitrary user project, including the conflict case where the user's project already has its own CLAUDE.md. At least two options compared with a recommendation + rationale.",
+    "A throwaway proof-of-load: a minimal plugin skeleton loads on THIS machine via `claude --plugin-dir` (or documented equivalent) and exposes at least one of the existing agents + one slash command. Capture the exact command + observed result in the doc. (Skeleton is throwaway — not committed as production.)",
+    "The doc defines the MCP-server seam at a contract level: which task-store operations become MCP tools, and an explicit statement of what a non-Claude-Code user WILL and WON'T get once the seam exists (so the 'broaden later' expectation is documented, not implied).",
+    "The doc ends with a phased implementation ticket breakdown (the chain) — each proposed ticket with a one-line scope + its depends_on edges — ready for the orchestrator to mint. Per the framework knowledge-sharing rule, note whether any new tech stack warrants a `.claude/skills/<stack>/` skill (likely none, but state it)."
+  ],
+  "status": "done",
+  "priority": "high",
+  "labels": [
+    "plugin",
+    "distribution",
+    "research",
+    "epic"
+  ],
+  "assignee": null,
+  "depends_on": [],
+  "linked_commits": [
+    "bd252d3"
+  ],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T22:10:00Z",
+      "body": "Created after the human chose (a) target surface = 'devs now, broaden later' and (b) packaging = Claude Code plugin. Grounded by a claude-code-guide research pass that confirmed: plugins bundle agents+skills+commands+hooks+MCP as one `/plugin install`-able unit; MCP cannot carry subagents (Claude Code-exclusive); skills auto-discover via plugins. Sequenced as a spike (not impl) because repoRoot-retargeting and orchestrator-activation are genuine unknowns that must be designed before the impl chain is minted — building impl tickets against them risks the wrong foundation. The spike's AC6 output (phased chain) becomes the next set of tickets."
+    },
+    {
+      "author": "researcher",
+      "at": "2026-05-28T22:30:00Z",
+      "body": "Delivered tasks/TASK-020.research.md (committed bd252d3) covering all 6 ACs. Key findings: (1) retargeting blast radius is small — only the 3 bin/ CLI shells bind process.cwd(); all src/ is already repoRoot-clean; the one real bug is ajv/ajv-formats/gray-matter stuck in devDependencies. (2) Hard constraint: a plugin-root CLAUDE.md is NOT loaded as context — RESUME FIRST must activate via a generated/merged project CLAUDE.md (+ backstop routing skill). (3) ${CLAUDE_PROJECT_DIR} is the canonical project-root handle for retargeting (verify it reaches the Bash-tool env). (4) MCP seam = 6 task-store tools; non-Code users get a shared backlog, not the agent team. (5) FLAG: .claude/agents/orchestrator.md still documents the v1 single-file session model — must be reconciled before shipping (assigned to P5). Proposed 7-ticket chain P1–P7. No new tech-stack skill warranted."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T22:40:00Z",
+      "body": "AC4 proof-of-load executed by orchestrator as a verification sensor (recorded in doc §D.5): `claude plugin validate` passed; a throwaway plugin installed from a relative-path (source:'./') local marketplace; `claude plugin details` confirmed the agent + command registered with 0 manifest errors; cleaned up with zero residue. Bonus: the `claude plugin {validate,details,install,uninstall,marketplace}` CLI is non-interactive — reusable as a sensor in the impl chain. Closed on human go-ahead (principle #4). Human decisions captured for the chain: (1) mint all 7 (P1–P7); (2) EXCLUDE bin/make-template.js from the shipped plugin bin/ (publish-time dev script only); (3) /init-project writes the project CLAUDE.md routing via PROMPT-ONCE-then-marker-merge (never silent, never clobber). Minted TASK-021..027 from the §F chain with the doc's depends_on edges; spike artifact lives at tasks/TASK-020.research.md."
+    }
+  ],
+  "created_at": "2026-05-28T22:10:00Z",
+  "updated_at": "2026-05-28T22:40:00Z",
+  "jira_key": null
+}
