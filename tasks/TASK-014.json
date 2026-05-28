@@ -1,0 +1,47 @@
+{
+  "key": "TASK-014",
+  "title": "Backlog seeder — generate starter tickets from intake use cases",
+  "description": "Fifth ticket of the six-ticket wizard chain (TASK-010..015). After PROJECT.md + project-context.md are written, the user still has zero tickets specific to THEIR project — only the framework's own historical tickets sit in `tasks/`. This ticket adds a seeder that reads the intake answers (specifically `primary_use_cases`) and writes a small set of starter tickets via `createTask`, giving the user a real day-one backlog they can immediately work on with the orchestrator.\n\n**Design choice locked by orchestrator (push back if wrong):** seeded tickets are tagged with a `seed` label and the seeder is one-shot per project — if any `seed`-labeled ticket exists, the next invocation is a no-op and returns `{created: []}`. Rationale: re-seeding after the user has started work on a seeded ticket would either duplicate (creating identical-title `todo` tickets) or clobber (destroying in-progress status). One-shot semantics align with how `bin/init.js`'s `--force` already works for PROJECT.md — regenerating the spec is safe, but the task store is mutable user-state and must be respected.\n\n**Per-use-case template map.** The seeder declares a single module-top `USE_CASE_TEMPLATES` object keyed by every value in the `primary_use_cases` enum from `src/question-library.js` (data-entry, reporting, integration, automation, collaboration, other). Each key maps to an array of >=2 ticket templates (1 for `other`). Templates are `{title, description, acceptance_criteria, priority}` partials; key, status, timestamps, labels, etc. are added by `createTask` + the seeder's label injection.\n\n**Common starter ticket.** Independent of use cases, the seeder always emits one shared starter ticket — `'Set up project CI'` — so every fresh project gets at least one actionable backlog item.\n\n**Integration with bin/init.js.** Called after `writeProjectMd` and `generateProjectContext` succeed, in the same `created`/`forced`/`resumed` branches the TASK-013 generator hooks. The idempotency guard inside the seeder ensures `--force` re-runs don't duplicate.\n\n**Out of scope:** dependency edges between seeded tickets (every seeded ticket is independent), priority-aware ordering, milestone bucketing, and editing/customizing seeded templates after creation (TASK-015 polish).",
+  "acceptance_criteria": [
+    "`src/backlog-seeder.js` exports `seedBacklog({repoRoot, answers, now})` and returns `{created: <string[]>}` listing the ticket keys it minted. Uses `createTask` from `src/task-store.js` for every ticket; never mints keys itself.",
+    "Seeder declares a module-top `USE_CASE_TEMPLATES` object keyed by every value in the `primary_use_cases` enum (data-entry, reporting, integration, automation, collaboration, other). data-entry / reporting / integration / automation / collaboration each have >=2 templates; `other` has exactly 1 generic template. Every template has `title`, `description`, `acceptance_criteria` (>=2 entries), and `priority`.",
+    "Seeder ALSO emits one common starter ticket (`'Set up project CI'` or similar) for every fresh project regardless of use cases. Common tickets come from a separate module-top `COMMON_TEMPLATES` array so the two surfaces stay independent.",
+    "Every seeded ticket is created with `labels: ['seed', ...]` (preserving any per-template labels), plus an opening comment from author `'backlog-seeder'` naming the use case that triggered it (or `'common'` for the common starter).",
+    "Idempotency: if any ticket in `tasks/` already has `seed` in its labels, `seedBacklog` returns `{created: []}` without writing anything. Detected by reading the existing task store (use the same `readAllTasks` helper logic — promote it if needed but DO NOT widen the public API beyond what's necessary).",
+    "`bin/init.js` calls `seedBacklog({repoRoot, answers, now})` after `generateProjectContext` succeeds, in the `created`, `forced`, and `resumed` branches (matching the TASK-013 hook placement). The `already_initialized` branch does NOT call the seeder.",
+    "Tests cover: (a) every value in the use-case enum produces the expected number of templates with `seed` label present on every ticket, (b) the common starter ticket is emitted on a fresh seed, (c) idempotency — running the seeder twice produces the same final task store with one ticket per template, not two, (d) the `primary_use_cases` answer can be either a string (single value) or array (multi-select), (e) bin/init.js integration test confirms seeded tickets land on disk after a successful init, (f) running the seeder against an empty `answers.primary_use_cases` still emits the common starter."
+  ],
+  "status": "done",
+  "priority": "high",
+  "labels": [
+    "wizard-chain",
+    "backlog-seeder",
+    "feature"
+  ],
+  "assignee": null,
+  "depends_on": [
+    "TASK-011",
+    "TASK-012",
+    "TASK-013"
+  ],
+  "linked_commits": [
+    "48d50a9",
+    "b9bfff4"
+  ],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-27T02:00:00Z",
+      "body": "Created from the TASK-010 chain narrative (decision dated 2026-05-26T00:00:00Z). All gates cleared — TASK-013 closed at 2026-05-27T01:30:01Z. Design choice — one-shot seeding via `seed` label + dedicated common-templates list — locked in description; developer is free to push back if a hidden cost surfaces. The framework's own `tasks/` directory already contains TASK-001..TASK-016 (the framework's own history); the seeder runs alongside that, NOT against it. The framework-vs-user-project file separation (whether `tasks/` should be wiped on clone) is a TASK-015 (UX polish) concern."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-27T02:30:01Z",
+      "body": "Reviewer verdict (fresh context): APPROVE-WITH-FOLLOWUPS. 0 HIGH, 3 MEDIUM, 3 LOW, 2 NIT. Re-ran npm test from clean state twice: 137/137 pass, ~7s, no flakes. All 7 ACs traced and probed: AC1 module shape, AC2 USE_CASE_TEMPLATES counts (6 keys, multi-value branches 2+ templates, other has 1), AC3 COMMON_TEMPLATES single starter, AC4 labels+comment on every ticket, AC5 idempotency short-circuits on first seed-labeled match, AC6 bin/init.js hook in created/forced/resumed via shared helper (already_initialized correctly skipped), AC7 string-or-array input normalized. Both dev-flagged deviations vindicated: (a) lowercase common comment body forced by test case-sensitive matcher, (b) mkdirSync in seeder forced because startSession does not create tasks/ and AC6 test uses makeTmpDir without makeRepoSkeleton. The 3 MEDIUMs were split: the mkdir-in-wrong-layer item rolled into TASK-009 as AC7 (task-store territory, same pattern as TASK-002 MEDIUM rolled into TASK-009 AC6); the remaining 2 MEDIUMs (Set dedup on use cases, CSV-string-silently-zero) + 3 LOWs + 2 NITs spawned as TASK-017 (seeder-specific hardening). None blocks TASK-015. Commits: 48d50a9 (test) + b9bfff4 (impl)."
+    }
+  ],
+  "created_at": "2026-05-27T02:00:00Z",
+  "updated_at": "2026-05-27T02:30:02Z",
+  "jira_key": null
+}

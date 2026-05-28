@@ -1,0 +1,30 @@
+{
+  "key": "TASK-017",
+  "title": "Hardening pass: backlog seeder findings from TASK-014 review",
+  "description": "Follow-up polish for `src/backlog-seeder.js`. None of these block correctness today (the wizard's happy path doesn't trip any of them — the question engine pre-normalizes the inputs the seeder sees), but each becomes reachable as soon as a non-wizard caller invokes `seedBacklog` directly.\n\n1. **Duplicate use-cases produce duplicate tickets (MEDIUM from TASK-014 review).** `seedBacklog({answers: {primary_use_cases: ['data-entry', 'data-entry']}})` emits each per-template ticket twice. The question engine de-duplicates multi-select input before the seeder sees it, but a future caller (scripts, replay tooling, hand-edited `intake.json`) that bypasses the engine can pass duplicates. Fix: wrap the per-use-case loop with `for (const uc of new Set(useCases))` so duplicates collapse before template lookup.\n\n2. **CSV string silently produces zero tickets (MEDIUM).** `normalizeUseCases('data-entry,reporting')` returns `['data-entry,reporting']` (the whole CSV as one slug), which fails the `USE_CASE_TEMPLATES` lookup and is silently dropped via `if (!templates) continue;`. The live wizard path is safe because the question engine splits CSVs before they reach the seeder, but a direct caller would get only the common starter with no error. Decide between: (a) split on `,` and trim inside `normalizeUseCases`, OR (b) throw on unknown slugs at the loop. Either explicit choice beats the silent zero.\n\n3. **Malformed JSON in tasks/ silently swallowed (LOW).** The idempotency guard's read loop catches JSON parse errors and treats the file as missing. A corrupted previously-seeded ticket would let the seeder re-mint duplicates. Decide between: (a) propagate the error to surface the corruption, (b) `console.warn` and skip, (c) keep the silent skip but document the rationale at the read site.\n\n4. **Sort-order assumption is fine but undocumented (LOW).** The idempotency guard short-circuits on the first `seed`-labeled match in `readdirSync` order, which is filesystem-dependent (Windows vs POSIX). Order doesn't actually matter for the guard but a comment naming this avoids the next reader's three-minute trace.\n\n5. **No error handling around the seeder call in bin/init.js (LOW).** If `seedBacklog` throws mid-mint (disk full, EACCES), `runWizardAndWriteProjectMd` propagates the error and leaves the user with PROJECT.md + project-context.md but no/partial backlog. Consistent with how `generateProjectContext` is hooked, so not a regression — but consider a try/catch + warning + continue, OR a rollback step.\n\n6. **`mintTicket` parallelism rationale undocumented (NIT).** The sequential await in the mint loop is correct (atomic-write needs serialization for monotonic keys) but a one-line comment would save the next reader a trace.\n\nReference: full reviewer report is summarized in the TASK-014 closing comment.",
+  "acceptance_criteria": [
+    "`seedBacklog` collapses duplicate use-case slugs via `new Set` before the per-template loop; a regression test passes `['data-entry', 'data-entry']` and asserts each template mints exactly once.",
+    "`normalizeUseCases` either splits a CSV string into an array (and trims each item) OR `seedBacklog` throws a named error on encountering an unknown slug. Whichever choice is taken, a regression test pins the behavior on the `'data-entry,reporting'` input.",
+    "The idempotency guard's JSON-parse failure mode is explicit: either it propagates, warns, or carries a code-site comment naming the deliberate swallow. Whichever, a regression test pins it.",
+    "The idempotency guard carries an inline comment naming the `readdirSync` order independence.",
+    "`bin/init.js`'s seeder call wraps `seedBacklog` in a try/catch that, at minimum, prints a user-visible warning on partial failure before re-throwing OR continues with a clear note. A test exercises the failure path with a stubbed seeder.",
+    "`mintTicket` carries a one-line comment naming the deliberate sequential-await pattern."
+  ],
+  "status": "todo",
+  "priority": "low",
+  "labels": ["hardening", "follow-up", "backlog-seeder"],
+  "assignee": null,
+  "depends_on": ["TASK-014"],
+  "linked_commits": [],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-27T02:30:00Z",
+      "body": "Created from the TASK-014 reviewer audit (verdict APPROVE-WITH-FOLLOWUPS, 3 MEDIUMs + 3 LOWs + 2 NITs concerning src/backlog-seeder.js). The mkdir-in-wrong-layer MEDIUM was filed against TASK-009 (AC7) since it's task-store territory; the remaining 5 seeder-specific items live here. None blocks TASK-015. Take alongside TASK-009 + TASK-016 if a hardening sprint is scheduled."
+    }
+  ],
+  "created_at": "2026-05-27T02:30:00Z",
+  "updated_at": "2026-05-27T02:30:00Z",
+  "jira_key": null
+}

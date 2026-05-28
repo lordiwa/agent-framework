@@ -8,13 +8,20 @@
     "An orchestrator-start hook (or equivalent) removes orphan `tasks/*.tmp.*` files left behind by interrupted writes.",
     "`listTodos` (or a new `listReady`) excludes tasks whose `depends_on` keys are not yet `done`; existing `listTodos` behavior may stay for raw status listing if both are kept.",
     "Writes via `transitionStatus`, `appendComment`, and `createTask` validate the resulting payload against `tasks/schema.json` before committing; invalid payloads throw and leave on-disk bytes unchanged.",
-    "Both `buildIndexBytes` and `listTodos` sort by the trailing numeric portion of the key (not the full string), so `TASK-999` appears before `TASK-1000` in `index.json` and `listTodos` output; a regression test enforces this."
+    "Both `buildIndexBytes` and `listTodos` sort by the trailing numeric portion of the key (not the full string), so `TASK-999` appears before `TASK-1000` in `index.json` and `listTodos` output; a regression test enforces this.",
+    "`createTask` self-bootstraps `tasks/` via `mkdirSync(tasksDir, {recursive: true})` before the first atomic write so callers on a fresh repo (no prior task store) don't ENOENT. Drop the workaround `mkdirSync` in `src/backlog-seeder.js` once this AC lands."
   ],
   "status": "todo",
   "priority": "low",
-  "labels": ["hardening", "follow-up", "task-store"],
+  "labels": [
+    "hardening",
+    "follow-up",
+    "task-store"
+  ],
   "assignee": null,
-  "depends_on": ["TASK-001"],
+  "depends_on": [
+    "TASK-001"
+  ],
   "linked_commits": [],
   "linked_prs": [],
   "comments": [
@@ -27,9 +34,14 @@
       "author": "orchestrator",
       "at": "2026-05-25T07:30:00Z",
       "body": "Added AC6 from the TASK-002 reviewer audit: lexical-sort bug in `buildIndexBytes`/`listTodos` that mis-orders `TASK-1000` against `TASK-999`. Classified MEDIUM by the reviewer but pre-existing from TASK-001 (TASK-002 didn't introduce it, only made it visible). Same module, same fix profile — rolled in rather than spawning a separate ticket. AC5 was also broadened to cover `createTask` since it's a third write path that should validate before committing."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-27T02:30:00Z",
+      "body": "Added AC7 from the TASK-014 reviewer audit: createTask must self-bootstrap tasks/ via mkdirSync so first-time callers on a fresh repo (notably backlog-seeder, but also bin/new-task.js on a wiped repo) do not ENOENT. The TASK-014 impl dev paper-mached the issue by adding the mkdir in src/backlog-seeder.js itself; that workaround is to be removed once AC7 lands. Reviewer classified MEDIUM. Same module + same fix profile as the other 6 ACs already here."
     }
   ],
   "created_at": "2026-05-25T06:30:00Z",
-  "updated_at": "2026-05-25T07:30:00Z",
+  "updated_at": "2026-05-27T02:30:00Z",
   "jira_key": null
 }

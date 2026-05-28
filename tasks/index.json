@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-27T01:30:01Z",
+  "generated_at": "2026-05-27T02:30:02Z",
   "tasks": [
     {
       "key": "TASK-001",
@@ -68,9 +68,21 @@
       "priority": "high"
     },
     {
+      "key": "TASK-014",
+      "title": "Backlog seeder — generate starter tickets from intake use cases",
+      "status": "done",
+      "priority": "high"
+    },
+    {
       "key": "TASK-016",
       "title": "Hardening pass: PROJECT.md persistence from TASK-011 review",
       "status": "done",
+      "priority": "low"
+    },
+    {
+      "key": "TASK-017",
+      "title": "Hardening pass: backlog seeder findings from TASK-014 review",
+      "status": "todo",
       "priority": "low"
     }
   ]
