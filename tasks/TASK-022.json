@@ -8,12 +8,15 @@
     "Framework-asset reads (tasks/schema.json, state/PROJECT.schema.json) are confirmed resolvable from their src/ modules under the plugin-root layout — a test loads task-store.js + project-md.js and confirms schema resolution does not throw.",
     "No regression: the full existing suite passes, and `runInit`/`runCli` still work when given an explicit `repoRoot` (the dev/test path)."
   ],
-  "status": "in_progress",
+  "status": "done",
   "priority": "high",
   "labels": ["plugin", "distribution", "plugin-chain", "retargeting"],
-  "assignee": "developer",
+  "assignee": null,
   "depends_on": ["TASK-021"],
-  "linked_commits": [],
+  "linked_commits": [
+    "f30e355",
+    "e5fd71a"
+  ],
   "linked_prs": [],
   "comments": [
     {
@@ -25,9 +28,24 @@
       "author": "orchestrator",
       "at": "2026-05-28T23:00:00Z",
       "body": "EMPIRICAL RESULT (orchestrator sensor, pre-chain): `CLAUDE_PROJECT_DIR` is UNSET in a Bash-tool subprocess on this machine/version (CLAUDE_CODE_SESSION_ID, CLAUDE_PROJECT_NAME, CLAUDECODE et al. ARE set — but not _DIR). HOWEVER `pwd`/`process.cwd()` of a Bash-tool call DOES equal the project root. Implications for P2: (1) the `process.env.CLAUDE_PROJECT_DIR ?? process.cwd()` binding is correct AND the cwd branch is the load-bearing one in practice — do not assume the env var exists; (2) the cwd fallback only holds if the invoking command's cwd is the project root (true for bin/ bare-command + `node` calls the Bash tool makes from the project root, but NOT if a command cd's elsewhere first); (3) the robust belt-and-suspenders is a SessionStart hook that EXPORTS CLAUDE_PROJECT_DIR (hooks reliably receive it per docs) so subprocesses inherit it regardless of cwd. Recommend implementing both the cwd fallback AND the SessionStart export. This downgrades AC2 from 'unknown' to 'known: env var absent, cwd works, add hook for robustness'."
+    },
+    {
+      "author": "developer",
+      "at": "2026-05-29T00:25:00Z",
+      "body": "IMPL complete (f30e355 test + e5fd71a impl). New src/repo-root.js exports pure resolveRepoRoot(env, cwd) — returns env.CLAUDE_PROJECT_DIR when set & non-empty-after-trim, else cwd. Wired into bin/init.js + bin/new-task.js entry blocks (bare process.cwd() binding replaced); bin/make-template.js left untouched. 237 passed / 1 skipped twice, deterministic, zero regressions. Asset-read guards green. SessionStart hook NOT built — cwd fallback empirically sufficient for all shipped invocation paths."
+    },
+    {
+      "author": "reviewer",
+      "at": "2026-05-29T00:45:00Z",
+      "body": "Verdict (fresh context): APPROVE. 0 HIGH / 0 MEDIUM / 1 LOW / 2 NIT. 237 passed + 1 skipped, twice, deterministic; 224 pre-existing green. Tests-first confirmed (commit split clean both ways). All 4 ACs COVERED. Helper verified pure (no hidden process.env/cwd reads; tolerates null env); all four branches (set/absent/empty/whitespace) tested. Both bin shells provably bind resolveRepoRoot(process.env, process.cwd()) at init.js:307 / new-task.js:200; bare process.cwd() gone; make-template + orchestrator.md untouched. LOW: env-branch returns the path un-normalized — judged NOT a real risk (harness sets a clean absolute path; trimming could be wrong on exotic filesystems). NIT: SessionStart-hook robustness deferred — ACCEPTABLE, best owned by P3 (TASK-023) which already builds a SessionStart hook for ${CLAUDE_PLUGIN_DATA} npm-install; building a half-hook in P2 would be reworked by P3. No HIGH/MEDIUM — nothing blocks close."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-29T00:50:00Z",
+      "body": "Closed on reviewer APPROVE under standing auto-close authorization. Linked commits f30e355 (test) + e5fd71a (impl). LOW (un-normalized env return) and the SessionStart-hook robustness deferral both accepted without in-band fix; the hook is folded into TASK-023/P3 per the reviewer (P3 already builds a SessionStart hook, so the CLAUDE_PROJECT_DIR export rides along there). Proceeding to TASK-023 (P3 runtime-deps packaging)."
     }
   ],
   "created_at": "2026-05-28T22:40:00Z",
-  "updated_at": "2026-05-28T22:40:00Z",
+  "updated_at": "2026-05-29T00:50:00Z",
   "jira_key": null
 }

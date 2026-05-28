@@ -8,10 +8,10 @@
     "A test or reproducible simulation proves `src/task-store.js` (which imports ajv at load) imports successfully when run with NODE_PATH pointing at the data-dir node_modules (i.e. with no node_modules adjacent to src/).",
     "First-run latency of the chosen mechanism is measured/estimated and recorded; if it triggers the vendoring fallback, that decision is documented."
   ],
-  "status": "todo",
+  "status": "in_progress",
   "priority": "high",
   "labels": ["plugin", "distribution", "plugin-chain", "packaging"],
-  "assignee": null,
+  "assignee": "developer",
   "depends_on": ["TASK-022"],
   "linked_commits": [],
   "linked_prs": [],
@@ -20,6 +20,11 @@
       "author": "orchestrator",
       "at": "2026-05-28T22:40:00Z",
       "body": "Minted from TASK-020 spike §F (P3) + §B.4. This is the packaging bug the audit surfaced (AC15 of the §B.2 table). Gates both P4 (init runs task-store on the user machine) and P6 (MCP server imports task-store)."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-29T00:50:00Z",
+      "body": "FOLDED IN from the TASK-022 review: P3 already builds a SessionStart hook (for the ${CLAUDE_PLUGIN_DATA} first-run npm install + NODE_PATH wiring). The reviewer recommended the belt-and-suspenders `export CLAUDE_PROJECT_DIR` robustness (deferred from P2) ride along on THAT same SessionStart hook rather than building a separate half-hook in P2. So: when you author the SessionStart hook here, also have it export/derive CLAUDE_PROJECT_DIR so bin/MCP subprocesses inherit the project root even if a command's cwd is not the project root. The cwd fallback (resolveRepoRoot, shipped in TASK-022) remains the primary mechanism; this hook is the robustness backstop. Add it as an extra AC/behavior, with a test."
     }
   ],
   "created_at": "2026-05-28T22:40:00Z",

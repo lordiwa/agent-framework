@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-29T00:05:00Z",
+  "generated_at": "2026-05-29T00:50:00Z",
   "tasks": [
     {
       "key": "TASK-001",
@@ -118,13 +118,13 @@
     {
       "key": "TASK-022",
       "title": "Plugin chain P2: repoRoot retargeting — operate on the user's project, not the plugin dir",
-      "status": "in_progress",
+      "status": "done",
       "priority": "high"
     },
     {
       "key": "TASK-023",
       "title": "Plugin chain P3: runtime dependency packaging (ajv/ajv-formats/gray-matter resolution at the user's machine)",
-      "status": "todo",
+      "status": "in_progress",
       "priority": "high"
     },
     {
