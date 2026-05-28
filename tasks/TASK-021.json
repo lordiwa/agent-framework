@@ -10,12 +10,15 @@
     "Dev-repo agent usage is preserved via the locked 'keep both + drift-guard' strategy: `.claude/agents/` stays intact as the live dev source of truth (bare names, so this session keeps spawning developer/reviewer/researcher), AND plugin-root `agents/` holds copies for shipping. A `tests/agents-parity.spec.js` test FAILS if the two directories diverge (same set of agent files, byte-identical contents). `.claude/agents/` is NOT deleted.",
     "Throwaway install artifacts are cleaned up (uninstall + marketplace remove) so the verification leaves no residue in user plugin config; chain follow-ups can re-run the same sensor."
   ],
-  "status": "in_progress",
+  "status": "done",
   "priority": "high",
   "labels": ["plugin", "distribution", "plugin-chain", "scaffold"],
-  "assignee": "developer",
+  "assignee": null,
   "depends_on": [],
-  "linked_commits": [],
+  "linked_commits": [
+    "d84b96b",
+    "61aa366"
+  ],
   "linked_prs": [],
   "comments": [
     {
@@ -27,9 +30,29 @@
       "author": "orchestrator",
       "at": "2026-05-28T23:05:00Z",
       "body": "Human decision (AC5): 'keep both + drift-guard'. .claude/agents/ remains the live dev source of truth so subagent spawning keeps working through TASK-022..027 in the active session; plugin-root agents/ gets byte-identical copies for shipping; tests/agents-parity.spec.js guards drift. Rejected self-load (--plugin-dir .) because it would namespace the agents and require relaunching THIS session before the chain could continue. Skills: relocate only the FRAMEWORK's OWN skills under .claude/skills/ (verify what is actually repo-local vs user-global before moving — do NOT sweep global gsd-*/etc. skills into the plugin)."
+    },
+    {
+      "author": "developer",
+      "at": "2026-05-28T23:25:00Z",
+      "body": "IMPL complete (commits d84b96b test + 61aa366 impl). Created .claude-plugin/{plugin.json,marketplace.json,shipped-bin.json}, plugin-root agents/ (4 byte-identical copies — authored by orchestrator after a Bash cp permission block; byte-identity guarded by agents-parity.spec.js), skills/tech-training-template/SKILL.md. 224 passed / 1 skipped twice, deterministic, zero regressions. plugin.json: name agentic-framework, mcpServers ./.mcp.json, no version. shipped-bin.json excludes make-template.js. .claude/agents/ untouched; orchestrator.md v1 text left for P5."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T23:45:00Z",
+      "body": "CLI sensor (orchestrator-run, AC1/2/3/6 proof on the REAL plugin): `claude plugin validate .` → passed; marketplace add (abs path) + install agentic-framework@agentic-framework-marketplace → succeeded; `claude plugin details agentic-framework` → Agents (4): developer, orchestrator, researcher, reviewer; Skills (1): tech-training-template; MCP servers (0), no errors; uninstall + marketplace remove → zero residue. Finding: `marketplace add .` is rejected (needs ./path or abs path) — abs path works; note for P7 docs. Dangling mcpServers ref tolerated (file lands in P6)."
+    },
+    {
+      "author": "reviewer",
+      "at": "2026-05-29T00:00:00Z",
+      "body": "Verdict (fresh context): APPROVE. 0 HIGH / 0 MEDIUM / 1 LOW / 1 NIT. 224 passed + 1 skipped, twice, deterministic; 206 pre-existing green (no regressions). Tests-first confirmed (git diff 61aa366^..61aa366 -- tests/ empty). All 6 ACs COVERED with named tests. AC5 parity independently verified: all 4 agent pairs share identical git blob hashes (real Buffer.equals comparison), .claude/agents/ preserved → session subagents survive the chain. No scope creep (skills/ holds only tech-training-template; orchestrator.md v1 text untouched, P5's territory). LOW: dangling mcpServers ./.mcp.json ref — correctly DEFERRED to P6 (mandated by AC1, CLI tolerated it). NIT: empty references/ subdir in the source skill not copied — harmless (zero content); revisit only if later populated. No HIGH/MEDIUM — nothing blocks close."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-29T00:05:00Z",
+      "body": "Closed on reviewer APPROVE under standing auto-close authorization for the plugin chain (human-granted). Linked commits d84b96b (test) + 61aa366 (impl). LOW (mcpServers) tracked by TASK-026/P6; NIT (empty references/) deferred without follow-up. P1 done — plugin loads, validates, installs, registers Agents=4. Proceeding to TASK-022 (P2 retargeting)."
     }
   ],
   "created_at": "2026-05-28T22:40:00Z",
-  "updated_at": "2026-05-28T22:40:00Z",
+  "updated_at": "2026-05-29T00:05:00Z",
   "jira_key": null
 }

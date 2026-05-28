@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-28T22:40:00Z",
+  "generated_at": "2026-05-29T00:05:00Z",
   "tasks": [
     {
       "key": "TASK-001",
@@ -112,13 +112,13 @@
     {
       "key": "TASK-021",
       "title": "Plugin chain P1: scaffold the Claude Code plugin (manifest + marketplace + component relocation)",
-      "status": "todo",
+      "status": "done",
       "priority": "high"
     },
     {
       "key": "TASK-022",
       "title": "Plugin chain P2: repoRoot retargeting — operate on the user's project, not the plugin dir",
-      "status": "todo",
+      "status": "in_progress",
       "priority": "high"
     },
     {

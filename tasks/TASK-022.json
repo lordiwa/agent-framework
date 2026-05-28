@@ -8,10 +8,10 @@
     "Framework-asset reads (tasks/schema.json, state/PROJECT.schema.json) are confirmed resolvable from their src/ modules under the plugin-root layout — a test loads task-store.js + project-md.js and confirms schema resolution does not throw.",
     "No regression: the full existing suite passes, and `runInit`/`runCli` still work when given an explicit `repoRoot` (the dev/test path)."
   ],
-  "status": "todo",
+  "status": "in_progress",
   "priority": "high",
   "labels": ["plugin", "distribution", "plugin-chain", "retargeting"],
-  "assignee": null,
+  "assignee": "developer",
   "depends_on": ["TASK-021"],
   "linked_commits": [],
   "linked_prs": [],
