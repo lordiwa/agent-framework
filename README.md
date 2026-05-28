@@ -147,6 +147,28 @@ A few things you will want to know as you go:
 
 ---
 
+## Preparing a distribution
+
+If you maintain the framework itself and want to hand someone a clean,
+clone-ready copy (rather than your working repo with its own tickets and
+session history baked in), run the template-prep step before publishing:
+
+```bash
+node bin/make-template.js --yes
+```
+
+Without `--yes` it is a dry run: it prints exactly what it would remove or
+rewrite and changes nothing. With `--yes` it clears out the framework's own
+tickets and any leftover session state so the next person starts from a blank
+backlog, while leaving the reusable parts (the helper definitions and the
+`knowledge/` library) in place.
+
+Whoever clones the result must run `npm install` once before
+`node bin/init.js` — the intake wizard depends on packages (such as the JSON
+schema validator) that are not vendored into the repository.
+
+---
+
 ## Getting help
 
 If `node bin/init.js` fails or any chat goes off the rails, the most useful
