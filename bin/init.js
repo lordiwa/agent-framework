@@ -156,7 +156,21 @@ async function runWizardAndWriteProjectMd({ repoRoot, sessionId, prompter, now }
   // TASK-014 — mint the day-one starter backlog from the intake's
   // primary_use_cases. seedBacklog is idempotent via the `seed` label: a
   // --force re-run will not duplicate tickets the user has already touched.
-  await seedBacklog({ repoRoot, answers, now });
+  //
+  // TASK-017 AC5 — wrap in try/catch that surfaces a user-visible warning
+  // BEFORE re-throwing. PROJECT.md and project-context.md are already on disk
+  // by this point; the user must learn about a half-minted backlog
+  // immediately, because a partial seed corrupts the idempotency guard for
+  // any future --force re-run. Silent-continue is NOT acceptable.
+  try {
+    await seedBacklog({ repoRoot, answers, now });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `backlog seeder failed mid-mint: ${err && err.message ? err.message : err}`,
+    );
+    throw err;
+  }
   return { projectMdPath: join(repoRoot, 'PROJECT.md') };
 }
 

@@ -40,7 +40,7 @@ const STATUSES = ['todo', 'in_progress', 'in_review', 'blocked', 'done'];
 const PRIORITIES = ['low', 'medium', 'high', 'critical'];
 
 // TASK-NNN.json — at least 3 digits, matches the schema's key pattern.
-const TASK_FILENAME_RE = /^TASK-(\d{3,})\.json$/;
+export const TASK_FILENAME_RE = /^TASK-(\d{3,})\.json$/;
 // Tmp suffix written by src/atomic-write.js — `${pid}-${randomBytes(6).hex}`.
 // The hex tail is 12 lowercase hex chars but we accept the broader shape to
 // stay forgiving of future changes to the suffix recipe.

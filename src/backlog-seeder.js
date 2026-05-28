@@ -25,7 +25,7 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { createTask, appendComment } from './task-store.js';
+import { createTask, appendComment, TASK_FILENAME_RE } from './task-store.js';
 
 /**
  * Module-top template catalogs. Frozen at the leaf level so a stray mutation
@@ -205,20 +205,38 @@ export const USE_CASE_TEMPLATES = Object.freeze({
 function readAllTasksSync(repoRoot) {
   const dir = join(repoRoot, 'tasks');
   if (!existsSync(dir)) return [];
-  const names = readdirSync(dir).filter(
-    (n) =>
-      n.endsWith('.json') &&
-      n !== 'index.json' &&
-      n !== 'schema.json',
-  );
+  // TASK-017 AC7 — share TASK_FILENAME_RE with src/task-store.js so the seeder
+  // and the store agree on what counts as a task file. The previous filter
+  // (suffix check plus two filename exclusions) would happily admit a stray
+  // `notes.json`, which then crashed the JSON.parse inside the read loop with
+  // a silently-swallowed error.
+  const names = readdirSync(dir).filter((n) => TASK_FILENAME_RE.test(n));
+  // TASK-017 AC4 — readdirSync returns filesystem-dependent order (Windows vs
+  // POSIX differ). The idempotency guard short-circuits on the first
+  // `seed`-labeled match, but the guard's correctness is independent of the
+  // readdirSync iteration order: any seed-labeled prior ticket blocks the
+  // re-seed regardless of which one we encounter first.
   const out = [];
   for (const name of names) {
+    const filePath = join(dir, name);
+    let raw;
     try {
-      const raw = readFileSync(join(dir, name), 'utf8');
+      raw = readFileSync(filePath, 'utf8');
+    } catch (err) {
+      // ENOENT is tolerated — the file was removed between readdirSync and
+      // readFileSync (concurrent cleanup). Any other read error propagates.
+      if (err && err.code === 'ENOENT') continue;
+      throw err;
+    }
+    // TASK-017 AC3 — propagate JSON.parse errors with the offending filename
+    // so the user can locate the corruption. The previous silent catch could
+    // mask a corrupt prior-seed ticket and let the seeder re-mint duplicates.
+    try {
       out.push(JSON.parse(raw));
-    } catch {
-      // Malformed task file — skip rather than crash the seeder. A separate
-      // ticket (TASK-015 polish) can surface these as warnings.
+    } catch (err) {
+      throw new Error(
+        `backlog-seeder: failed to parse task file ${name}: ${err.message}`,
+      );
     }
   }
   return out;
@@ -238,6 +256,17 @@ function normalizeUseCases(raw) {
     return raw.filter((v) => typeof v === 'string' && v.length > 0);
   }
   if (typeof raw === 'string' && raw.length > 0) {
+    // TASK-017 AC2 — split CSV strings on ',' and trim. The question engine
+    // already pre-splits multi-select input before it reaches the seeder, but
+    // direct callers (scripts, replay tooling, hand-edited intake.json) can
+    // pass the raw CSV. Splitting here keeps both paths convergent on the
+    // array shape that the per-use-case loop expects.
+    if (raw.includes(',')) {
+      return raw
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+    }
     return [raw];
   }
   return [];
@@ -251,6 +280,12 @@ function normalizeUseCases(raw) {
  * test's commentNamesUseCase helper does String.includes(tag) to partition
  * minted tickets by trigger). Phrasing is deliberately anodyne for the
  * 'common' case so no incidental use-case slug appears in the body.
+ *
+ * TASK-017 AC6 — callers MUST await mintTicket sequentially (one ticket per
+ * iteration, never Promise.all over the templates). The atomic-write key
+ * derivation inside createTask reads the current max TASK-NNN from disk and
+ * writes TASK-(NNN+1); a parallel mint would race that read and produce
+ * duplicate or non-monotonic keys. Serialization here is deliberate.
  */
 async function mintTicket({ repoRoot, template, tag, now }) {
   const labels = Array.from(
@@ -318,10 +353,17 @@ export async function seedBacklog({
   }
 
   // ---- Step 4: per-use-case ----
-  for (const uc of useCases) {
+  // TASK-017 AC1 — collapse duplicate use-case slugs via `new Set` BEFORE the
+  // per-template loop. The question engine de-duplicates multi-select input,
+  // but a direct caller (scripts, hand-edited intake.json) can pass
+  // duplicates; without this, each template would mint twice.
+  for (const uc of new Set(useCases)) {
     const templates = USE_CASE_TEMPLATES[uc];
     if (!templates) continue; // Unknown use case slug — silently ignore.
     for (const tpl of templates) {
+      // TASK-017 AC6 — sequential await is deliberate. Parallelizing the mint
+      // would race the monotonic-key derivation inside createTask's
+      // atomic-write step. Do not refactor to Promise.all.
       const key = await mintTicket({ repoRoot, template: tpl, tag: uc, now });
       created.push(key);
     }
