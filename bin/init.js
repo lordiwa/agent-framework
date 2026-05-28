@@ -37,6 +37,7 @@ import { writeProjectMd, readProjectMd } from '../src/project-md.js';
 import { generateProjectContext } from '../src/agent-generator.js';
 import { seedBacklog } from '../src/backlog-seeder.js';
 import { archiveFrameworkHistory } from '../src/framework-history.js';
+import { resolveRepoRoot } from '../src/repo-root.js';
 
 const KNOWN_FLAGS = new Set(['--force', '--help', '--no-archive']);
 const TASK_FILE_RE = /^TASK-\d{3,}\.json$/;
@@ -303,7 +304,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   runInit({
     argv: process.argv.slice(2),
     prompter: realReadlinePrompter(),
-    repoRoot: process.cwd(),
+    repoRoot: resolveRepoRoot(process.env, process.cwd()),
   })
     .then(printFriendlyOutcome)
     .catch(printFriendlyError);

@@ -18,6 +18,7 @@ import { stdin as input, stdout as output } from 'node:process';
 
 import { createTask } from '../src/task-store.js';
 import { runQuestionnaire } from '../src/question-engine.js';
+import { resolveRepoRoot } from '../src/repo-root.js';
 
 const REPEATABLE = new Set(['--ac', '--label', '--depends']);
 const SINGLE = new Set(['--title', '--description', '--priority']);
@@ -196,7 +197,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   runCli({
     argv: process.argv.slice(2),
     prompter,
-    repoRoot: process.cwd(),
+    repoRoot: resolveRepoRoot(process.env, process.cwd()),
     now: () => new Date().toISOString(),
   })
     .then(({ key, path }) => {
