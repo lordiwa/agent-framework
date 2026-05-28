@@ -38,13 +38,30 @@
 // closed so future contributors can't sneak in unstructured config.
 
 import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { atomicWriteFile } from './atomic-write.js';
 
 const PROJECT_MD = 'PROJECT.md';
 const SCHEMA_VERSION = 1;
+
+// Load the frontmatter schema once at module load. It's a static asset shipped
+// with the repo and is consulted by coerceFrontmatterScalar to gate numeric
+// coercion on the schema-declared type (TASK-016 AC2). Reading it eagerly with
+// readFileSync keeps coerceFrontmatterScalar synchronous; if the file is
+// missing or malformed we fall back to an empty schema so coercion simply
+// no-ops on every field rather than breaking the reader outright.
+const __thisFileDir = dirname(fileURLToPath(import.meta.url));
+const __schemaPath = join(__thisFileDir, '..', 'state', 'PROJECT.schema.json');
+let FRONTMATTER_SCHEMA = { properties: {} };
+try {
+  FRONTMATTER_SCHEMA = JSON.parse(readFileSync(__schemaPath, 'utf8'));
+  if (!FRONTMATTER_SCHEMA.properties) FRONTMATTER_SCHEMA.properties = {};
+} catch {
+  FRONTMATTER_SCHEMA = { properties: {} };
+}
 
 // Single source of truth for body-section <-> answer-id mapping. Used by both
 // writer and reader so the round-trip cannot drift. Keys are ordered: that
@@ -73,6 +90,19 @@ const FRONTMATTER_IDS = new Set(['project_name', 'project_type']);
  * @returns {Promise<{path: string}>}
  */
 export async function writeProjectMd({ repoRoot, answers, now = () => new Date().toISOString() }) {
+  // Validate required answers BEFORE touching disk so a missing field surfaces
+  // at the point of error (TASK-016 AC4) rather than downstream at ajv. The
+  // empty-string check is deliberate: a downstream renderer that emits
+  // `name: \n` would still write a syntactically valid frontmatter that ajv
+  // would then reject — confusing the caller about where the bug originated.
+  const requiredFrontmatterAnswers = ['project_name', 'project_type'];
+  for (const id of requiredFrontmatterAnswers) {
+    const v = answers ? answers[id] : undefined;
+    if (v === undefined || v === null || v === '') {
+      throw new Error(`writeProjectMd: missing required answer: ${id}`);
+    }
+  }
+
   const target = join(repoRoot, PROJECT_MD);
   const createdAt = now();
   const body = renderProjectMd(answers, createdAt);
@@ -104,7 +134,9 @@ function renderProjectMd(answers, createdAt) {
   const name = answers.project_name ?? '';
   const type = answers.project_type ?? '';
 
-  // Frontmatter — scalar lines only, no quoting (values may not contain ':').
+  // Frontmatter — scalar lines only; the colon constraint applies only here
+  // (body prose and Stack `- key: value` entries accept colons freely because
+  // the Stack parser only splits on the FIRST colon per line).
   const fmLines = [
     '---',
     `name: ${name}`,
@@ -153,9 +185,78 @@ function renderProjectMd(answers, createdAt) {
 
 function formatStackValue(value) {
   if (Array.isArray(value)) {
-    return `[${value.join(', ')}]`;
+    // Inline-array items must escape backslash first then comma so the read-back
+    // split on ',' (after unescaping) is lossless even when items legitimately
+    // contain commas (TASK-016 AC1). Order matters: escaping '\' to '\\' before
+    // ',' to '\,' avoids double-escaping the slash we just added.
+    return `[${value.map((v) => encodeArrayItem(String(v))).join(', ')}]`;
   }
   return String(value);
+}
+
+// Encode an inline-array item: backslash first, then comma. The reader
+// (decodeArrayItem) reverses the encoding in a single left-to-right scan.
+function encodeArrayItem(s) {
+  return s.replace(/\\/g, '\\\\').replace(/,/g, '\\,');
+}
+
+// Decode a single inline-array item. A single left-to-right scan is required
+// because a naive `replaceAll('\\,', ',').replaceAll('\\\\', '\\')` mis-handles
+// the input `\\,` (which on disk means "literal backslash followed by item
+// separator"): the first replace would consume the trailing `\,` as an escaped
+// comma instead of recognizing the leading `\\` as an escaped backslash.
+function decodeArrayItem(s) {
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '\\' && i + 1 < s.length) {
+      const next = s[i + 1];
+      if (next === '\\') {
+        out += '\\';
+        i++;
+        continue;
+      }
+      if (next === ',') {
+        out += ',';
+        i++;
+        continue;
+      }
+      // Lone backslash followed by anything else: emit the backslash
+      // literally and let the next iteration handle `next`.
+      out += '\\';
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+// Split an inline-array inner string on UNESCAPED commas. Any comma preceded
+// by an odd number of backslashes is part of the item, not a separator.
+function splitInlineArray(inner) {
+  const items = [];
+  let buf = '';
+  let i = 0;
+  while (i < inner.length) {
+    const ch = inner[i];
+    if (ch === '\\' && i + 1 < inner.length) {
+      // Carry the escape through to the decoder verbatim — the decoder is the
+      // only thing that resolves '\\' vs '\,' to their literal chars.
+      buf += ch + inner[i + 1];
+      i += 2;
+      continue;
+    }
+    if (ch === ',') {
+      items.push(buf);
+      buf = '';
+      i++;
+      continue;
+    }
+    buf += ch;
+    i++;
+  }
+  items.push(buf);
+  return items.map((s) => decodeArrayItem(s.trim()));
 }
 
 // ---------------------------------------------------------------------------
@@ -273,21 +374,30 @@ function parseFrontmatter(fmLines) {
       continue;
     }
 
-    out[key] = coerceFrontmatterScalar(rawValue);
+    out[key] = coerceFrontmatterScalar(rawValue, key);
   }
   return out;
 }
 
-function coerceFrontmatterScalar(raw) {
-  // Inline array: [a, b, c]
+function coerceFrontmatterScalar(raw, fieldName) {
+  // Inline array: [a, b, c] — items may contain escaped commas / backslashes
+  // (see encodeArrayItem in the writer). Use the shared splitInlineArray
+  // helper so all three call sites (writer, this reader, parseStackValue)
+  // agree on the encoding.
   if (raw.startsWith('[') && raw.endsWith(']')) {
     const inner = raw.slice(1, -1).trim();
     if (inner.length === 0) return [];
-    return inner.split(',').map((s) => s.trim());
+    return splitInlineArray(inner);
   }
-  // Integer
+  // Integer/number coercion is now schema-aware (TASK-016 AC2): we only coerce
+  // a numeric-looking string when the schema declares the field as integer or
+  // number. This avoids silently turning a versioned tag like `version_tag: 1`
+  // into Number 1 just because it looks like an int.
   if (/^-?\d+$/.test(raw)) {
-    return Number(raw);
+    const declared = FRONTMATTER_SCHEMA.properties?.[fieldName]?.type;
+    if (declared === 'integer' || declared === 'number') {
+      return Number(raw);
+    }
   }
   return raw;
 }
@@ -328,10 +438,19 @@ function parseBullets(blockLines) {
 }
 
 function parseStackValue(raw) {
+  // String-only handling for non-array Stack values is deliberate: unknown
+  // Stack keys have no schema-declared type, so we preserve the raw string
+  // form rather than coerce numeric-looking values. This is an intentional
+  // asymmetry vs. coerceFrontmatterScalar (which DOES coerce, gated on the
+  // schema's declared type). Do not "fix" by adding a Number(...) coercion
+  // here — that would silently break stack values like `port: '8080'` that
+  // callers store as strings on purpose.
   if (raw.startsWith('[') && raw.endsWith(']')) {
     const inner = raw.slice(1, -1).trim();
     if (inner.length === 0) return [];
-    return inner.split(',').map((s) => s.trim());
+    // Honor the same comma/backslash escape scheme as the writer
+    // (encodeArrayItem) so array items containing commas round-trip losslessly.
+    return splitInlineArray(inner);
   }
   return raw;
 }
