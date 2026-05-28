@@ -68,6 +68,11 @@ function parseArgs(argv) {
  *   - any existing TASK-NNN.json carries the `seed` label.
  * Mirrors archiveFrameworkHistory's detection so the user is never prompted
  * for an archive that would no-op.
+ *
+ * TASK-018 — JSON.parse failures propagate with the offending filename,
+ * aligning this peek with src/backlog-seeder.js#readAllTasksSync's AC3
+ * behavior. Surfacing corruption here (before the archive prompt fires) keeps
+ * the user out of the half-archived-repo trap the old silent swallow created.
  */
 function countFrameworkHistory(repoRoot) {
   const tasksDir = join(repoRoot, 'tasks');
@@ -75,13 +80,16 @@ function countFrameworkHistory(repoRoot) {
   const taskFiles = readdirSync(tasksDir).filter((n) => TASK_FILE_RE.test(n));
   if (taskFiles.length === 0) return 0;
   for (const name of taskFiles) {
+    let t;
     try {
-      const t = JSON.parse(readFileSync(join(tasksDir, name), 'utf8'));
-      if (Array.isArray(t.labels) && t.labels.includes('seed')) {
-        return 0;
-      }
-    } catch {
-      // Corrupt ticket: treat as framework history (consistent with archive).
+      t = JSON.parse(readFileSync(join(tasksDir, name), 'utf8'));
+    } catch (err) {
+      throw new Error(
+        `bin/init.js: failed to parse task file ${name}: ${err.message}`,
+      );
+    }
+    if (Array.isArray(t.labels) && t.labels.includes('seed')) {
+      return 0;
     }
   }
   return taskFiles.length;

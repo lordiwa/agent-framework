@@ -197,10 +197,11 @@ export const USE_CASE_TEMPLATES = Object.freeze({
 });
 
 /**
- * Local mirror of src/task-store.js#readAllTasks (synchronous variant).
- * Duplicated intentionally — the orchestrator forbade widening task-store's
- * public API just for this one read. Skips schema.json / index.json / any
- * non-TASK file.
+ * Local synchronous mirror of src/task-store.js#readAllTasks. Uses the
+ * TASK_FILENAME_RE regex imported from src/task-store.js (TASK-017 AC7) so
+ * the seeder and the store agree on what counts as a task file. Kept local
+ * (rather than promoted to task-store's public API) because the seeder is
+ * the only consumer of the synchronous variant.
  */
 function readAllTasksSync(repoRoot) {
   const dir = join(repoRoot, 'tasks');
@@ -359,7 +360,10 @@ export async function seedBacklog({
   // duplicates; without this, each template would mint twice.
   for (const uc of new Set(useCases)) {
     const templates = USE_CASE_TEMPLATES[uc];
-    if (!templates) continue; // Unknown use case slug — silently ignore.
+    // TASK-017 AC2 design lock: split-CSV in normalizeUseCases is the
+    // canonical entry path; unknown slugs reach here only via direct-caller
+    // misuse (hand-edited intake.json, scripts) — silently ignore.
+    if (!templates) continue;
     for (const tpl of templates) {
       // TASK-017 AC6 — sequential await is deliberate. Parallelizing the mint
       // would race the monotonic-key derivation inside createTask's
