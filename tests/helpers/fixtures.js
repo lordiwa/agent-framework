@@ -183,6 +183,7 @@ export const PROD = Object.freeze({
   questionEngine: prodUrl('question-engine.js'),
   questionLibrary: prodUrl('question-library.js'),
   projectMd: prodUrl('project-md.js'),
+  agentGenerator: prodUrl('agent-generator.js'),
   newTaskCli: binUrl('new-task.js'),
   init: binUrl('init.js'),
 });
