@@ -1,39 +1,34 @@
 // tests/plugin-deps.spec.js
-// TASK-023 — Plugin chain P3: runtime dependency packaging.
+// TASK-023 — Plugin chain P3: runtime dependency packaging via ESBUILD BUNDLING.
 //
 // Authoritative design: tasks/TASK-020.research.md §B.4 and the TASK-023
-// "APPROACH LOCKED" comment (2026-05-29T01:10). The locked mechanism: ship the
-// runtime deps (ajv / ajv-formats / gray-matter) via the documented
-// ${CLAUDE_PLUGIN_DATA} first-run-install pattern, driven by a SessionStart
-// hook. ONE hook does two jobs: (a) diff the bundled package.json against a
-// stored copy in ${CLAUDE_PLUGIN_DATA} and `npm install` there on first run /
-// change; (b) write env exports (NODE_PATH + the folded-in CLAUDE_PROJECT_DIR)
-// to $CLAUDE_ENV_FILE for all subsequent Bash-tool / MCP / bin subprocesses.
+// "APPROACH PIVOTED" comment (2026-05-29T01:45). The earlier data-dir/NODE_PATH
+// lock was ABANDONED after attempt-1 (commit bd1ac0e) empirically proved ESM
+// `import` ignores NODE_PATH. The locked-in mechanism is now:
 //
-// TESTS-FIRST: none of the impl exists yet. package.json still lists the three
-// deps under devDependencies; hooks/hooks.json and hooks/setup-deps.mjs do not
-// exist. So each spec below MUST fail for the RIGHT reason (deps in the wrong
-// section / file absent / module-not-found), never on a typo in this file.
+//   esbuild BUNDLES each standalone Node entrypoint (bin/init.js,
+//   bin/new-task.js) into a self-contained committed .cjs artifact under dist/,
+//   with ALL deps INLINED (src/* modules + ajv + ajv-formats + gray-matter).
+//   The installed plugin runs `node dist/<x>.cjs`; there is NO runtime module
+//   resolution at all — no node_modules, no NODE_PATH, no SessionStart hook.
 //
-// We do NOT run a real `npm install` (slow / networked / flaky). The hook's
-// install DECISION and its env-line OUTPUT are tested as pure functions; the
-// resolution proof (AC3) uses a controlled `node` spawn against an isolated
-// copy of the importing module with NO node_modules up-tree, so the ONLY way
-// the deps can resolve is the mechanism under test.
+// Consequences encoded below:
+//   • ajv/ajv-formats/gray-matter STAY in devDependencies (bundle-time only).
+//   • NO hooks/setup-deps.* and NO SessionStart deps-hook may be introduced.
+//   • The build output dir is `dist/` and MUST be COMMITTED (un-ignored).
 //
-// ── CRITICAL IMPL FINDING surfaced by AC3 below (see the long comment there) ──
-// ESM `import` of bare specifiers DOES NOT honor NODE_PATH (NODE_PATH is a
-// CommonJS-only resolution hint). src/task-store.js and src/knowledge.js use
-// ESM `import Ajv from 'ajv/...'`, so a bare `NODE_PATH=<dataDir>/node_modules`
-// export — the literal wording of the locked approach — will NOT make those
-// imports resolve. The mechanism that DOES work for ESM is a `node_modules`
-// directory reachable UP-TREE from the importing file (i.e. install/symlink the
-// data-dir node_modules so it sits at the plugin root, adjacent to src/). AC3
-// pins THAT working contract and additionally documents the NODE_PATH-ESM
-// limitation as an executable expectation, so impl cannot ship the broken
-// NODE_PATH-only variant and believe it works. The env-line AC (AC2) still
-// asserts NODE_PATH is exported (it is harmless and helps any CJS consumer /
-// the MCP server if it is CJS), but it is NOT sufficient on its own for ESM.
+// PINNED OUTPUT DIR: `dist/`  →  dist/init.cjs, dist/new-task.cjs
+// PINNED BUILD SCRIPT: `npm run build:plugin` (package.json scripts.build:plugin)
+//
+// TESTS-FIRST: no impl exists yet — there is no build:plugin script, no esbuild
+// devDependency entry, no dist/ artifacts, dist/ is still gitignored, and
+// shipped-bin.json still points at raw bin/*.js. Each spec below MUST fail for
+// the RIGHT reason (script/dep/file/ignore/wiring absent), never on a typo here.
+//
+// DETERMINISTIC + OFFLINE: we run esbuild (a fast, already-installed devDep)
+// in-test to build into a TEMP outdir for the script/runtime proofs — we do NOT
+// run `npm install`. The committed-artifact + git-tracked + .gitignore + wiring
+// checks read the repo's on-disk/VCS state directly.
 
 import { describe, it, expect, afterAll } from 'vitest';
 import {
@@ -47,13 +42,22 @@ import { spawnSync } from 'node:child_process';
 import { REPO_ROOT } from './helpers/repoRoot.js';
 
 const PKG_JSON = join(REPO_ROOT, 'package.json');
-const HOOKS_JSON = join(REPO_ROOT, 'hooks', 'hooks.json');
-const SETUP_DEPS = join(REPO_ROOT, 'hooks', 'setup-deps.mjs');
-const SETUP_DEPS_URL = pathToFileURL(SETUP_DEPS).href;
+const GITIGNORE = join(REPO_ROOT, '.gitignore');
+const SHIPPED_BIN = join(REPO_ROOT, '.claude-plugin', 'shipped-bin.json');
+
+// The pinned output dir + the two bundled entrypoints (MCP server bundle is P6).
+const DIST_DIR = join(REPO_ROOT, 'dist');
+const BUNDLES = [
+  { entry: join(REPO_ROOT, 'bin', 'init.js'), out: 'init.cjs' },
+  { entry: join(REPO_ROOT, 'bin', 'new-task.js'), out: 'new-task.cjs' },
+];
 
 const RUNTIME_DEPS = ['ajv', 'ajv-formats', 'gray-matter'];
 
-// Tmp dirs created by AC3's isolation harness; reaped after the suite.
+// Module-resolution error surfaces a bundle would emit if a dep were NOT inlined.
+const MODULE_RESOLUTION_ERROR = /(MODULE_NOT_FOUND|Cannot find module|Cannot find package|ERR_MODULE_NOT_FOUND)/;
+
+// ---- tmp-dir bookkeeping (reaped after the suite) -------------------------
 const __tmpDirs = [];
 function makeTmp(label) {
   const p = mkdtempSync(join(tmpdir(), `${label}-`));
@@ -71,231 +75,331 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8')); // malformed JSON throws here — a "right" failure.
 }
 
+/** Build one entrypoint with esbuild into `outfile`. Mirrors the contract the
+ *  build:plugin script must satisfy (bundle, node platform, cjs, self-contained,
+ *  shebang preserved/added). Used by the script-independent runtime proof so the
+ *  proof can run before the npm script exists. Throws on esbuild error. */
+async function esbuildBundle(entry, outfile) {
+  const esbuild = await import('esbuild');
+  await esbuild.build({
+    entryPoints: [entry],
+    bundle: true,
+    platform: 'node',
+    format: 'cjs',
+    outfile,
+    logLevel: 'silent',
+  });
+}
+
 // ===========================================================================
-// AC1 — the three runtime deps live under "dependencies", not "devDependencies".
-// They are imported at MODULE LOAD by src/task-store.js (ajv, ajv-formats) and
-// src/knowledge.js (gray-matter, ajv, ajv-formats), and that code runs on the
-// USER's machine at init time — so they are runtime deps, full stop.
-// FAILS NOW: package.json lists all three under devDependencies.
+// AC1 — esbuild is a devDependency and a `build:plugin` npm script exists.
+// FAILS NOW: no scripts.build:plugin; esbuild only appears under "overrides"
+// (transitive pin), not as a declared devDependency.
 // ===========================================================================
-describe('AC1 — runtime deps are in dependencies, not devDependencies', () => {
-  it('package_json_has_a_dependencies_object', () => {
+describe('AC1 — build:plugin script + esbuild devDependency', () => {
+  it('package_json_declares_esbuild_as_a_devDependency', () => {
     const pkg = readJson(PKG_JSON);
+    const dev = pkg.devDependencies || {};
     expect(
-      pkg.dependencies && typeof pkg.dependencies === 'object',
-      'package.json must declare a "dependencies" object',
+      Object.prototype.hasOwnProperty.call(dev, 'esbuild'),
+      'esbuild must be a declared devDependency (build-time bundler)',
     ).toBe(true);
+    expect(typeof dev.esbuild).toBe('string');
+    expect(dev.esbuild.length).toBeGreaterThan(0);
   });
 
-  for (const dep of RUNTIME_DEPS) {
-    it(`${dep}_is_listed_under_dependencies`, () => {
-      const pkg = readJson(PKG_JSON);
-      const deps = pkg.dependencies || {};
-      expect(
-        Object.prototype.hasOwnProperty.call(deps, dep),
-        `${dep} must be in package.json "dependencies" (runtime import)`,
-      ).toBe(true);
-      expect(typeof deps[dep]).toBe('string');
-      expect(deps[dep].length).toBeGreaterThan(0);
-    });
+  it('package_json_has_a_build_plugin_script', () => {
+    const pkg = readJson(PKG_JSON);
+    const scripts = pkg.scripts || {};
+    expect(
+      typeof scripts['build:plugin'],
+      'package.json scripts must define "build:plugin"',
+    ).toBe('string');
+    expect(scripts['build:plugin'].length).toBeGreaterThan(0);
+  });
+});
 
-    it(`${dep}_is_NOT_left_in_devDependencies`, () => {
+// ===========================================================================
+// AC1/AC6 (deps policy) — the three runtime deps STAY in devDependencies under
+// the bundling approach (inlined at build time, never resolved at runtime).
+// This is the inverse of attempt-1's AC. Asserting they did NOT get moved to
+// `dependencies` guards against an impl that reverts to the abandoned plan.
+// PASSES TODAY (deps are already devDeps) — a regression guard, not a red test.
+// ===========================================================================
+describe('AC6 — runtime deps STAY devDependencies (bundled, not resolved)', () => {
+  for (const dep of RUNTIME_DEPS) {
+    it(`${dep}_remains_a_devDependency`, () => {
       const pkg = readJson(PKG_JSON);
       const dev = pkg.devDependencies || {};
       expect(
         Object.prototype.hasOwnProperty.call(dev, dep),
-        `${dep} must be REMOVED from devDependencies once promoted to dependencies`,
+        `${dep} must stay in devDependencies (inlined by the bundle)`,
+      ).toBe(true);
+    });
+
+    it(`${dep}_is_NOT_promoted_to_dependencies`, () => {
+      const pkg = readJson(PKG_JSON);
+      const deps = pkg.dependencies || {};
+      expect(
+        Object.prototype.hasOwnProperty.call(deps, dep),
+        `${dep} must NOT be in "dependencies" — bundling inlines it, the ` +
+          `data-dir/NODE_PATH approach that required this move is abandoned`,
       ).toBe(false);
     });
   }
-
-  it('vitest_stays_a_devDependency', () => {
-    // Guard: the promotion must move ONLY the three runtime deps. vitest is a
-    // test-only tool and must remain under devDependencies.
-    const pkg = readJson(PKG_JSON);
-    const dev = pkg.devDependencies || {};
-    expect(
-      Object.prototype.hasOwnProperty.call(dev, 'vitest'),
-      'vitest must remain a devDependency',
-    ).toBe(true);
-  });
 });
 
 // ===========================================================================
-// AC2 (hook registration) — hooks/hooks.json registers a SessionStart hook that
-// points at the bundled hook script via ${CLAUDE_PLUGIN_ROOT}.
-//
-// Shape (mirrors the Claude Code hooks.json format): a top-level object whose
-// `hooks.SessionStart` is an array of matcher groups, each with a `hooks` array
-// of { type: "command", command: "..." } entries. The command must invoke
-// `node` against ${CLAUDE_PLUGIN_ROOT}/hooks/setup-deps.mjs so the hook script
-// runs cross-platform (Windows users exist — a bash script would not).
-// FAILS NOW: hooks/hooks.json does not exist.
+// AC5 — NO SessionStart deps-hook / NODE_PATH machinery is introduced. The
+// abandoned approach's hooks/setup-deps.* and a deps-oriented SessionStart hook
+// must NOT exist. (resolveRepoRoot's cwd fallback, shipped in TASK-022, is the
+// project-root mechanism; CLAUDE_PROJECT_DIR robustness is moot under bundling.)
+// PASSES TODAY — a guard that impl does not resurrect the hook.
 // ===========================================================================
-describe('AC2 — hooks/hooks.json registers a SessionStart hook', () => {
-  it('hooks_json_exists_and_is_valid_json', () => {
-    const h = readJson(HOOKS_JSON);
-    expect(typeof h).toBe('object');
-    expect(h).not.toBeNull();
-  });
-
-  it('declares_a_SessionStart_array', () => {
-    const h = readJson(HOOKS_JSON);
-    const root = h.hooks && typeof h.hooks === 'object' ? h.hooks : h;
-    expect(Array.isArray(root.SessionStart), 'hooks.SessionStart must be an array').toBe(true);
-    expect(root.SessionStart.length).toBeGreaterThan(0);
-  });
-
-  it('SessionStart_runs_a_command_hook_pointing_at_the_bundled_setup_script', () => {
-    const h = readJson(HOOKS_JSON);
-    const root = h.hooks && typeof h.hooks === 'object' ? h.hooks : h;
-    // Collect every command string across the matcher groups.
-    const commands = [];
-    for (const group of root.SessionStart) {
-      const entries = Array.isArray(group.hooks) ? group.hooks
-        : (group.type ? [group] : []);
-      for (const e of entries) {
-        if (e && e.type === 'command' && typeof e.command === 'string') commands.push(e.command);
-      }
-    }
-    expect(commands.length, 'SessionStart must declare at least one command hook').toBeGreaterThan(0);
-    // The command references the plugin-root-relative hook script.
-    const refsScript = commands.some(
-      (c) => c.includes('${CLAUDE_PLUGIN_ROOT}') && c.includes('hooks/setup-deps.mjs'),
-    );
-    expect(
-      refsScript,
-      'a SessionStart command must run ${CLAUDE_PLUGIN_ROOT}/hooks/setup-deps.mjs',
-    ).toBe(true);
-    // Cross-platform: it must invoke the script through `node`, not a shell.
-    const usesNode = commands.some((c) => /(^|\W)node(\W|$)/.test(c) && c.includes('setup-deps.mjs'));
-    expect(usesNode, 'the hook command must run the .mjs via `node` (cross-platform)').toBe(true);
-  });
-});
-
-// ===========================================================================
-// AC3-behavior (ticket AC2 + folded-in CLAUDE_PROJECT_DIR) — the hook's core is
-// a pure, unit-testable function. Representation pinned here:
-//
-//   planSetup({ pluginRoot, pluginData, projectDir, storedPkgExists, pkgChanged })
-//     => { shouldInstall: boolean, envLines: string[] }
-//
-//   shouldInstall === true  ⟺  first run (!storedPkgExists) OR pkgChanged.
-//   envLines ALWAYS include, regardless of shouldInstall:
-//     `export NODE_PATH=<pluginData>/node_modules`
-//     `export CLAUDE_PROJECT_DIR=<projectDir>`
-//
-// FAILS NOW: hooks/setup-deps.mjs does not exist (dynamic import rejects).
-// ===========================================================================
-describe('AC2-behavior — planSetup decides install + emits env lines', () => {
-  async function loadPlanSetup() {
-    const mod = await import(SETUP_DEPS_URL);
-    expect(typeof mod.planSetup, 'hooks/setup-deps.mjs must export planSetup()').toBe('function');
-    return mod.planSetup;
-  }
-
-  const base = {
-    pluginRoot: '/cache/plugins/agentic-framework',
-    pluginData: '/data/agentic-framework',
-    projectDir: '/home/user/my-project',
-  };
-
-  it('first_run_no_stored_pkg_triggers_install', async () => {
-    const planSetup = await loadPlanSetup();
-    const plan = planSetup({ ...base, storedPkgExists: false, pkgChanged: false });
-    expect(plan.shouldInstall).toBe(true);
-  });
-
-  it('changed_package_json_triggers_install', async () => {
-    const planSetup = await loadPlanSetup();
-    const plan = planSetup({ ...base, storedPkgExists: true, pkgChanged: true });
-    expect(plan.shouldInstall).toBe(true);
-  });
-
-  it('unchanged_package_json_skips_install', async () => {
-    const planSetup = await loadPlanSetup();
-    const plan = planSetup({ ...base, storedPkgExists: true, pkgChanged: false });
-    expect(plan.shouldInstall).toBe(false);
-  });
-
-  it('env_lines_always_export_NODE_PATH_at_the_data_dir_node_modules', async () => {
-    const planSetup = await loadPlanSetup();
-    for (const opts of [
-      { storedPkgExists: false, pkgChanged: false },
-      { storedPkgExists: true, pkgChanged: false },
-    ]) {
-      const plan = planSetup({ ...base, ...opts });
-      expect(Array.isArray(plan.envLines)).toBe(true);
-      const hasNodePath = plan.envLines.some(
-        (l) => /^export\s+NODE_PATH=/.test(l) && l.includes(`${base.pluginData}/node_modules`),
-      );
+describe('AC5 — no SessionStart deps-hook under bundling', () => {
+  it('hooks_setup_deps_script_does_not_exist', () => {
+    for (const name of ['setup-deps.mjs', 'setup-deps.js', 'setup-deps.cjs']) {
       expect(
-        hasNodePath,
-        'envLines must always export NODE_PATH=<pluginData>/node_modules',
-      ).toBe(true);
+        existsSync(join(REPO_ROOT, 'hooks', name)),
+        `hooks/${name} must NOT exist — bundling needs no first-run install hook`,
+      ).toBe(false);
     }
   });
 
-  it('env_lines_always_export_CLAUDE_PROJECT_DIR_folded_in_from_P2', async () => {
-    const planSetup = await loadPlanSetup();
-    const plan = planSetup({ ...base, storedPkgExists: true, pkgChanged: false });
-    const hasProjDir = plan.envLines.some(
-      (l) => /^export\s+CLAUDE_PROJECT_DIR=/.test(l) && l.includes(base.projectDir),
-    );
+  it('no_hooks_json_registers_a_deps_install_SessionStart_hook', () => {
+    // If a hooks/hooks.json exists at all (it may for unrelated reasons later),
+    // it must not wire a deps-install/NODE_PATH SessionStart command. Absent
+    // file ⇒ trivially satisfied.
+    const hooksJson = join(REPO_ROOT, 'hooks', 'hooks.json');
+    if (!existsSync(hooksJson)) {
+      expect(true).toBe(true);
+      return;
+    }
+    const raw = readFileSync(hooksJson, 'utf8');
     expect(
-      hasProjDir,
-      'envLines must always export CLAUDE_PROJECT_DIR=<projectDir> (folded-in P2 backstop)',
-    ).toBe(true);
-  });
-
-  it('env_lines_are_plain_export_VAR_value_strings', async () => {
-    // $CLAUDE_ENV_FILE consumes literal `export VAR=value` lines. Each emitted
-    // line must match that grammar so the file the hook writes is well-formed.
-    const planSetup = await loadPlanSetup();
-    const plan = planSetup({ ...base, storedPkgExists: false, pkgChanged: false });
-    for (const line of plan.envLines) {
-      expect(/^export\s+[A-Z_][A-Z0-9_]*=.+$/.test(line), `bad env line: ${line}`).toBe(true);
-    }
+      /setup-deps|NODE_PATH|CLAUDE_PLUGIN_DATA/.test(raw),
+      'hooks.json must not reference the abandoned deps-install machinery',
+    ).toBe(false);
   });
 });
 
 // ===========================================================================
-// AC3 (ticket AC3) — RESOLUTION PROOF. Prove src/task-store.js (imports ajv +
-// ajv-formats at module load) imports successfully when its deps are reachable
-// ONLY via the data-dir node_modules, with NO node_modules adjacent to / above
-// the importing src/ in the shipped tree.
-//
-// Method: build an ISOLATED copy under the OS tmp dir (verified to have NO
-// node_modules anywhere up-tree on this machine), containing exactly
-//   <iso>/src/task-store.js     (copy of the real module)
-//   <iso>/src/atomic-write.js   (its only intra-repo import; node-builtins only)
-//   <iso>/tasks/schema.json     (the ../tasks/schema.json asset it reads at init)
-// then spawn `node --input-type=module -e 'import(<iso>/src/task-store.js)'` and
-// vary how the deps are made reachable. This isolates dep resolution to exactly
-// the mechanism under test.
-//
-// FINDING ENCODED HERE (impl-blocking — see file header): ESM ignores NODE_PATH.
-//   • control_a: NODE_PATH=<repo>/node_modules, NO adjacent node_modules
-//       → MUST FAIL (ERR_MODULE_NOT_FOUND). Documents that the literal
-//         "NODE_PATH wiring" of the locked approach is INSUFFICIENT for ESM.
-//   • working: a node_modules reachable up-tree from src/ (symlink/junction at
-//       the iso root, the way a real plugin-root install would sit)
-//       → MUST SUCCEED (IMPORT_OK). This is the contract impl must satisfy.
-//
-// These spawns require the repo's real node_modules to exist (it does — dev
-// install). control_a FAILS NOW only in the sense that it asserts a documented
-// truth; the load-bearing tests-first failures are AC1/AC2/AC2-behavior above.
-// `working` is a guard that the mechanism impl must wire up is physically sound.
+// AC1 (build behavior) — running the build produces ONE self-contained .cjs per
+// entrypoint with an inlined deps + a single shebang. Testable split chosen:
+//   (a) THIS block builds each entrypoint into a TEMP outdir via esbuild (the
+//       same contract build:plugin must meet) and asserts self-containment —
+//       no committed artifact required, deterministic, offline.
+//   (b) The next block asserts the COMMITTED artifacts exist + are git-tracked.
+// (a) can PASS once esbuild is invoked correctly; it FAILS NOW only if esbuild
+// is somehow unavailable — its real job is to pin the self-containment contract.
 // ===========================================================================
-describe('AC3 — task-store.js resolves via data-dir node_modules, none adjacent', () => {
-  const REPO_NM = join(REPO_ROOT, 'node_modules');
+describe('AC1 — esbuild produces a self-contained bundle per entrypoint', () => {
+  for (const { entry, out } of BUNDLES) {
+    it(`builds_${out}_as_a_single_self_contained_file`, async () => {
+      const tmp = makeTmp('af-eb-build');
+      const outfile = join(tmp, out);
+      await esbuildBundle(entry, outfile);
 
-  // Skip the whole block (rather than error) if the dev install is missing, so
-  // the suite stays honest on a node_modules-less checkout.
+      expect(existsSync(outfile), `${out} must be emitted`).toBe(true);
+      const code = readFileSync(outfile, 'utf8');
+
+      // Self-contained: NO leftover bare runtime `require('ajv'|…)` / dynamic
+      // import of a runtime dep — they must be inlined, not referenced.
+      for (const dep of RUNTIME_DEPS) {
+        const escaped = dep.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const bareRequire = new RegExp(`require\\((['"\`])${escaped}\\1\\)`);
+        expect(
+          bareRequire.test(code),
+          `${out} must NOT keep a bare require('${dep}') — esbuild must inline it`,
+        ).toBe(false);
+      }
+      // Evidence the bundle actually pulled the dep in (ajv ships recognizable
+      // tokens). A bundle that merely dropped the import would be tiny + lack it.
+      expect(code.length).toBeGreaterThan(50_000);
+    });
+
+    it(`${out}_has_exactly_one_shebang_as_the_very_first_line`, async () => {
+      // The shipped bundle must be directly executable: a single
+      // `#!/usr/bin/env node` shebang, and it must be byte-0 (a second shebang
+      // on line 2 — esbuild's banner duplicating the entry's own shebang — is a
+      // SyntaxError; attempt-probe confirmed this footgun).
+      const tmp = makeTmp('af-eb-shebang');
+      const outfile = join(tmp, out);
+      await esbuildBundle(entry, outfile);
+      const code = readFileSync(outfile, 'utf8');
+      const lines = code.split('\n');
+      expect(lines[0]).toBe('#!/usr/bin/env node');
+      const shebangCount = lines.filter((l) => l.startsWith('#!')).length;
+      expect(
+        shebangCount,
+        `${out} must have exactly ONE shebang line (two = parse error)`,
+      ).toBe(1);
+    });
+  }
+});
+
+// ===========================================================================
+// AC3 — build output is COMMITTED and NOT gitignored.
+// FAILS NOW: .gitignore still has a `dist/` line; nothing is tracked under dist/.
+// ===========================================================================
+describe('AC3 — bundle artifacts are committed (not gitignored)', () => {
+  it('gitignore_no_longer_ignores_the_dist_output_dir', () => {
+    expect(existsSync(GITIGNORE), '.gitignore must exist').toBe(true);
+    const lines = readFileSync(GITIGNORE, 'utf8')
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#'));
+    // A bare `dist/` (or `dist`, `/dist`) ignore line must be gone so the
+    // committed bundles are tracked. A negation (`!dist/...`) is fine.
+    const ignoresDist = lines.some((l) => /^\/?dist\/?$/.test(l));
+    expect(
+      ignoresDist,
+      '.gitignore must NOT ignore dist/ — the bundles are committed artifacts',
+    ).toBe(false);
+  });
+
+  for (const { out } of BUNDLES) {
+    it(`dist_${out}_is_tracked_by_git`, () => {
+      const rel = `dist/${out}`;
+      const r = spawnSync('git', ['ls-files', '--error-unmatch', rel], {
+        cwd: REPO_ROOT, encoding: 'utf8',
+      });
+      expect(
+        r.status,
+        `${rel} must be tracked by git (committed bundle); git ls-files said: ` +
+          `${(r.stdout || '').trim()}${(r.stderr || '').trim()}`,
+      ).toBe(0);
+    });
+  }
+});
+
+// ===========================================================================
+// AC2 — RUNTIME RESOLUTION PROOF (the key AC). Copy a built bundle into a temp
+// dir with NO node_modules anywhere up-tree and actually RUN it; assert there is
+// NO module-resolution error — proving deps are INLINED, not resolved at runtime.
+//
+// We build into the temp dir directly (esbuild, offline) rather than depending
+// on a committed artifact, so this proof runs in the tests-first phase too. The
+// OS tmp dir was verified (attempt-1) to have no node_modules up-tree.
+//
+// We invoke `node <bundle> <a-flag-that-makes-it-exit-fast>` and assert the
+// stderr contains NO MODULE_NOT_FOUND-class error. A normal nonzero CLI exit
+// (e.g. "unknown flag") is fine — we are proving DEP RESOLUTION, not behavior.
+// A SECOND, clearly-labeled assertion requires the bundle to also initialize
+// cleanly (reach arg-parsing) so an `import.meta.url`/asset-load crash under
+// bundling is caught and handed to impl as a precise signal.
+// ===========================================================================
+describe('AC2 — bundle runs with deps inlined, no node_modules up-tree', () => {
+  for (const { entry, out } of BUNDLES) {
+    it(`${out}_loads_with_no_MODULE_NOT_FOUND_in_isolation`, async () => {
+      const isoRoot = makeTmp('af-eb-iso');
+      const outfile = join(isoRoot, out);
+      await esbuildBundle(entry, outfile);
+      // Sanity: nothing resolvable up-tree from the iso dir.
+      expect(existsSync(join(isoRoot, 'node_modules'))).toBe(false);
+
+      const cleanEnv = { ...process.env };
+      delete cleanEnv.NODE_PATH;
+      const r = spawnSync(
+        process.execPath,
+        [outfile, '--__af_probe_unknown_flag__'],
+        { cwd: isoRoot, env: cleanEnv, encoding: 'utf8' },
+      );
+      const stderr = r.stderr || '';
+
+      // THE AC: deps are inlined ⇒ no module-resolution failure.
+      expect(
+        MODULE_RESOLUTION_ERROR.test(stderr),
+        `bundle ${out} hit a module-resolution error in isolation — a dep was ` +
+          `NOT inlined. stderr:\n${stderr.slice(0, 600)}`,
+      ).toBe(false);
+    });
+
+    it(`${out}_initializes_cleanly_under_bundling_no_import_meta_crash`, async () => {
+      // Stronger guard: the bundle must actually load to arg-parsing. Under cjs
+      // bundling, src/task-store.js + src/project-md.js read schema assets via
+      // `fileURLToPath(import.meta.url)`, which esbuild empties → a crash unless
+      // impl handles it (define/inject the path, ship the schema beside the
+      // bundle, or inline the JSON). This fails loudly so impl gets a precise
+      // signal; it is NOT a node_modules problem (covered above).
+      const isoRoot = makeTmp('af-eb-iso-init');
+      const outfile = join(isoRoot, out);
+      await esbuildBundle(entry, outfile);
+
+      const cleanEnv = { ...process.env };
+      delete cleanEnv.NODE_PATH;
+      const r = spawnSync(
+        process.execPath,
+        [outfile, '--__af_probe_unknown_flag__'],
+        { cwd: isoRoot, env: cleanEnv, encoding: 'utf8' },
+      );
+      const stderr = r.stderr || '';
+      const initCrash = /(import\.meta|fileURLToPath|ERR_INVALID_ARG_TYPE|ENOENT)/.test(stderr);
+      expect(
+        initCrash,
+        `bundle ${out} crashed during module init (likely import.meta.url / ` +
+          `schema-asset resolution under bundling). impl must handle the ` +
+          `import.meta.url asset reads. stderr:\n${stderr.slice(0, 600)}`,
+      ).toBe(false);
+    });
+  }
+});
+
+// ===========================================================================
+// AC4 — shipped entrypoints point at the COMMITTED BUNDLES, not raw bin/*.js.
+// shipped-bin.json currently lists ["init.js", "new-task.js"] (bin sources) →
+// FAILS NOW. The shipped surface must reference the dist/ bundles instead.
+// (Representation kept deliberately loose on the exact key/shape so impl can
+// choose; the invariant: each listed shipped entry resolves to a dist/*.cjs
+// bundle, and no entry is a bare bin/*.js source.)
+// ===========================================================================
+describe('AC4 — shipped-bin points at the committed bundles', () => {
+  it('shipped_bin_manifest_exists', () => {
+    const m = readJson(SHIPPED_BIN);
+    expect(typeof m).toBe('object');
+    expect(m).not.toBeNull();
+  });
+
+  it('every_shipped_entry_references_a_dist_bundle_not_a_raw_bin_source', () => {
+    const m = readJson(SHIPPED_BIN);
+    expect(Array.isArray(m.bin), 'shipped-bin.json must list a `bin` array').toBe(true);
+    expect(m.bin.length).toBeGreaterThan(0);
+    for (const entry of m.bin) {
+      expect(typeof entry).toBe('string');
+      // Must point into dist/ and be a .cjs bundle.
+      expect(
+        /(^|\/)dist\//.test(entry) && entry.endsWith('.cjs'),
+        `shipped entry "${entry}" must reference a dist/*.cjs bundle, not raw bin/*.js`,
+      ).toBe(true);
+      // And must not be a bare bin source filename.
+      expect(/^(init|new-task)\.js$/.test(entry)).toBe(false);
+    }
+  });
+
+  it('shipped_entries_cover_init_and_new_task_bundles', () => {
+    const m = readJson(SHIPPED_BIN);
+    const joined = (m.bin || []).join('|');
+    expect(joined).toMatch(/init\.cjs/);
+    expect(joined).toMatch(/new-task\.cjs/);
+  });
+});
+
+// ===========================================================================
+// DOCUMENTATION GUARDS (carried over from attempt-1) — WHY bundling, not
+// NODE_PATH. These prove the runtime facts that drove the pivot. They PASS
+// today and stand as executable rationale, not red tests-first specs.
+//
+// Kept because a future maintainer (or a re-litigation of the approach) needs
+// the falsifiable evidence: (1) ESM ignores NODE_PATH; (2) the only non-bundle
+// way to resolve is an adjacent up-tree node_modules — which the pivot rejected
+// in favor of inlining.
+// ===========================================================================
+describe('DOC — runtime facts that motivate bundling over NODE_PATH', () => {
+  const REPO_NM = join(REPO_ROOT, 'node_modules');
   const haveDevInstall = existsSync(join(REPO_NM, 'ajv')) && existsSync(join(REPO_NM, 'ajv-formats'));
 
-  function buildIsolatedCopy() {
-    const root = makeTmp('af-deps-iso');
+  function isolatedTaskStoreCopy() {
+    const root = makeTmp('af-doc-iso');
     const srcDir = join(root, 'src');
     const tasksDir = join(root, 'tasks');
     mkdirSync(srcDir, { recursive: true });
@@ -318,51 +422,23 @@ describe('AC3 — task-store.js resolves via data-dir node_modules, none adjacen
     });
   }
 
-  it.skipIf(!haveDevInstall)(
-    'working_adjacent_node_modules_resolves_ESM_imports',
-    () => {
-      const { root, srcDir } = buildIsolatedCopy();
-      // The real working mechanism: a node_modules reachable up-tree from src/.
-      // (A plugin-root install, or a junction from ${CLAUDE_PLUGIN_DATA}.)
-      const linked = join(root, 'node_modules');
-      try {
-        symlinkSync(REPO_NM, linked, 'junction');
-      } catch (e) {
-        // Junctions need no admin on Windows; if it still fails, fail loudly so
-        // we don't silently pass a meaningless test.
-        throw new Error(`could not create node_modules junction for the proof: ${e.code || e.message}`);
-      }
-      const r = spawnImport(srcDir, {});
-      expect(
-        r.stdout.trim(),
-        `expected IMPORT_OK; got stdout=${JSON.stringify(r.stdout)} stderr=${JSON.stringify(r.stderr)}`,
-      ).toBe('IMPORT_OK');
-      expect(r.status).toBe(0);
-    },
-  );
+  it.skipIf(!haveDevInstall)('ESM_import_IGNORES_NODE_PATH', () => {
+    const { srcDir } = isolatedTaskStoreCopy();
+    const r = spawnImport(srcDir, { NODE_PATH: REPO_NM });
+    expect(r.status, `NODE_PATH-only should fail for ESM; stderr=${r.stderr}`).not.toBe(0);
+    expect(r.stderr).toContain('ERR:ERR_MODULE_NOT_FOUND');
+  });
 
-  it.skipIf(!haveDevInstall)(
-    'control_NODE_PATH_alone_does_NOT_resolve_ESM_imports',
-    () => {
-      // Documents the impl-blocking truth: ESM `import` ignores NODE_PATH. With
-      // the data-dir's node_modules reachable ONLY via NODE_PATH (none adjacent
-      // up-tree), the import MUST fail. If this ever starts passing, Node has
-      // changed ESM resolution to honor NODE_PATH and the impl/AC can simplify.
-      const { srcDir } = buildIsolatedCopy();
-      const r = spawnImport(srcDir, { NODE_PATH: REPO_NM });
-      expect(
-        r.status,
-        `NODE_PATH-only should fail for ESM; stdout=${JSON.stringify(r.stdout)} stderr=${JSON.stringify(r.stderr)}`,
-      ).not.toBe(0);
-      expect(r.stderr).toContain('ERR:ERR_MODULE_NOT_FOUND');
-    },
-  );
-
-  it('in_repo_resolution_still_works', async () => {
-    // Guard: importing the real module in-repo (node_modules adjacent up-tree)
-    // resolves ajv/ajv-formats fine — the baseline the impl must not regress.
-    const { PROD } = await import('./helpers/fixtures.js');
-    const mod = await import(PROD.taskStore);
-    expect(typeof mod.createTask).toBe('function');
+  it.skipIf(!haveDevInstall)('only_an_adjacent_up_tree_node_modules_resolves_ESM', () => {
+    const { root, srcDir } = isolatedTaskStoreCopy();
+    const linked = join(root, 'node_modules');
+    try {
+      symlinkSync(REPO_NM, linked, 'junction');
+    } catch (e) {
+      throw new Error(`could not create node_modules junction: ${e.code || e.message}`);
+    }
+    const r = spawnImport(srcDir, {});
+    expect(r.stdout.trim(), `expected IMPORT_OK; stderr=${r.stderr}`).toBe('IMPORT_OK');
+    expect(r.status).toBe(0);
   });
 });
