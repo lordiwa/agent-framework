@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "agentic-framework-marketplace",
+  "owner": { "name": "Rafael Matovelle", "email": "srparca@gmail.com" },
+  "description": "Distribution marketplace for the Agentic Software Development Framework.",
+  "plugins": [
+    {
+      "name": "agentic-framework",
+      "source": "./",
+      "description": "Multi-agent orchestrated development loop as a Claude Code plugin."
+    }
+  ]
+}
