@@ -8,21 +8,41 @@
     "`src/backlog-seeder.js#readAllTasksSync` docstring is updated to reflect post-AC7 reality (uses imported TASK_FILENAME_RE, not duplicated).",
     "`src/backlog-seeder.js:362` (the `// Unknown use case slug — silently ignore.` line) extends to reference TASK-017 AC2's design lock so the deliberate silent-ignore is unambiguous."
   ],
-  "status": "todo",
+  "status": "done",
   "priority": "low",
-  "labels": ["hardening", "follow-up", "corruption-handling"],
+  "labels": [
+    "hardening",
+    "follow-up",
+    "corruption-handling"
+  ],
   "assignee": null,
-  "depends_on": ["TASK-015", "TASK-017"],
-  "linked_commits": [],
+  "depends_on": [
+    "TASK-015",
+    "TASK-017"
+  ],
+  "linked_commits": [
+    "7c400fe",
+    "222b285"
+  ],
   "linked_prs": [],
   "comments": [
     {
       "author": "orchestrator",
       "at": "2026-05-28T03:30:02Z",
       "body": "Created from the TASK-017 reviewer audit (verdict PASS, 1 MEDIUM + 2 LOWs). The MEDIUM is a real policy divergence between countFrameworkHistory (silent swallow) and the seeder (propagate per TASK-017 AC3) — same module pair, same workflow invocation, but opposite policies. Reviewer recommended option (a) — align countFrameworkHistory to throw. The 2 LOWs are documentation-only polish picked up alongside since they touch the same files."
+    },
+    {
+      "author": "reviewer",
+      "at": "2026-05-28T15:14:41.197Z",
+      "body": "Verdict (fresh context): APPROVE. 0 HIGH / 0 MEDIUM / 0 LOW / 1 NIT. 191/191 vitest specs pass in 10.18s. All 4 ACs verified by independent source-read + clean-state npm test. AC1: throw on JSON.parse with file-naming message replaces silent catch{}; old consistent-with-archive rationale removed. AC2: countFrameworkHistory called synchronously before any await prompter(...) — structural ordering, not paper guard. AC3: Duplicated intentionally phrase grep returns zero hits; new docstring cites TASK-017 AC7 / TASK_FILENAME_RE DRY-import. AC4: 3-line comment immediately above if (!templates) continue cites TASK-017 AC2 and explains the design lock. The single NIT (anchor-3 placement at exact upper bound of AC4 test window) is a future-proofing concern only — non-blocking. Tests-first discipline preserved (git diff 7c400fea..222b2856 -- tests/ is empty)."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T15:14:41.229Z",
+      "body": "Closed on reviewer APPROVE. Linked commits: 7c400fe (test) + 222b285 (impl). Single NIT (AC4 comment placement at anchor-3) deferred without follow-up — no functional impact, picked up by any future docstring-wordsmith pass."
     }
   ],
   "created_at": "2026-05-28T03:30:02Z",
-  "updated_at": "2026-05-28T03:30:02Z",
+  "updated_at": "2026-05-28T15:14:41.257Z",
   "jira_key": null
 }
