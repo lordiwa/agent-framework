@@ -22,7 +22,7 @@
 // incidentally contain a use-case slug (the test partitions tickets by
 // substring match — overlap would mis-attribute commons to a use case).
 
-import { readdirSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { createTask, appendComment } from './task-store.js';
@@ -307,10 +307,7 @@ export async function seedBacklog({
   // ---- Step 2: normalize ----
   const useCases = normalizeUseCases(answers && answers.primary_use_cases);
 
-  // Ensure tasks/ exists before handing off to createTask. bin/init.js's
-  // created branch may run against a fresh tmp dir with no tasks/ yet —
-  // createTask's atomic-write would otherwise ENOENT on the sibling tmp file.
-  mkdirSync(join(repoRoot, 'tasks'), { recursive: true });
+  // tasks/ is self-bootstrapped by createTask (TASK-009 AC7) — no mkdir here.
 
   const created = [];
 
