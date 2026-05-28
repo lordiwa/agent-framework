@@ -34,6 +34,7 @@ import { readPointer } from '../src/pointer.js';
 import { runQuestionnaire } from '../src/question-engine.js';
 import { buildIntakeQuestions } from '../src/question-library.js';
 import { writeProjectMd, readProjectMd } from '../src/project-md.js';
+import { generateProjectContext } from '../src/agent-generator.js';
 
 const KNOWN_FLAGS = new Set(['--force', '--help']);
 
@@ -93,6 +94,11 @@ async function runWizardAndWriteProjectMd({ repoRoot, sessionId, prompter, now }
     now,
   });
   await writeProjectMd({ repoRoot, answers, now });
+  // TASK-013 — emit the per-project agent briefing alongside PROJECT.md.
+  // The in-memory `answers` are passed through so the generator doesn't have
+  // to read back from disk; this keeps init's "write once, read never"
+  // semantics intact during the wizard run.
+  await generateProjectContext({ repoRoot, answers, now });
   return { projectMdPath: join(repoRoot, 'PROJECT.md') };
 }
 
