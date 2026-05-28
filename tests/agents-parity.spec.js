@@ -1,0 +1,82 @@
+// tests/agents-parity.spec.js
+// TASK-021 — drift guard for the "keep both" agent relocation strategy (AC5).
+//
+// Locked decision (human, recorded in the ticket): the framework is BOTH its own
+// dev environment and the plugin source. We do NOT delete `.claude/agents/`
+// (the live dev source of truth this very session spawns subagents from);
+// instead the plugin ships byte-identical COPIES at the plugin-root `agents/`.
+// This spec FAILS whenever the two directories diverge — either the *set* of
+// agent files differs, or any pair of same-named files is not byte-identical.
+//
+// Tests-first phase: plugin-root `agents/` does not exist yet, so the parity
+// assertions FAIL for the RIGHT reason (the copy hasn't been created). The
+// safety assertion that `.claude/agents/` still holds the four agents PASSES
+// today and must keep passing (it guards against an over-eager impl that
+// deletes the dev source).
+//
+// AC map (TASK-021):
+//   AC5 — keep-both + drift-guard: `.claude/agents/` stays; plugin-root
+//         `agents/` holds byte-identical copies; this test fails on divergence;
+//         `.claude/agents/` is NOT deleted.
+
+import { describe, it, expect } from 'vitest';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { REPO_ROOT } from './helpers/repoRoot.js';
+
+// The four repo-local agents. The global gsd-*/vue/etc. skills/agents are NOT
+// repo-local and are intentionally out of scope here.
+const AGENT_FILES = ['developer.md', 'orchestrator.md', 'researcher.md', 'reviewer.md'];
+
+const DEV_AGENTS_DIR = join(REPO_ROOT, '.claude', 'agents');
+const PLUGIN_AGENTS_DIR = join(REPO_ROOT, 'agents');
+
+/** List only the *.md agent files in a dir (ignore project-context.md and dirs). */
+function listAgentMd(dir) {
+  if (!existsSync(dir)) return null;
+  return readdirSync(dir)
+    .filter((n) => n.endsWith('.md') && n !== 'project-context.md')
+    .sort();
+}
+
+describe('AC5 — .claude/agents stays as the live dev source of truth', () => {
+  it('dev_agents_dir_still_holds_exactly_the_four_agents', () => {
+    // Safety guard: the relocation must NOT delete the dev source. This passes
+    // today and must keep passing after the impl lands.
+    const entries = listAgentMd(DEV_AGENTS_DIR);
+    expect(entries, '.claude/agents/ must still exist').not.toBeNull();
+    expect(entries).toEqual([...AGENT_FILES].sort());
+  });
+});
+
+describe('AC5 — plugin-root agents/ mirrors .claude/agents/ (drift guard)', () => {
+  it('plugin_agents_dir_exists_with_the_same_file_set', () => {
+    const devSet = listAgentMd(DEV_AGENTS_DIR);
+    const pluginSet = listAgentMd(PLUGIN_AGENTS_DIR);
+
+    expect(pluginSet, 'plugin-root agents/ must exist').not.toBeNull();
+    // Identical SET of agent files (drift on the file set fails the build).
+    expect(pluginSet).toEqual(devSet);
+    expect(pluginSet).toEqual([...AGENT_FILES].sort());
+  });
+
+  it('each_agent_pair_is_byte_identical', () => {
+    expect(existsSync(PLUGIN_AGENTS_DIR), 'plugin-root agents/ must exist').toBe(true);
+    for (const name of AGENT_FILES) {
+      const devPath = join(DEV_AGENTS_DIR, name);
+      const pluginPath = join(PLUGIN_AGENTS_DIR, name);
+
+      expect(existsSync(devPath), `.claude/agents/${name} must exist`).toBe(true);
+      expect(existsSync(pluginPath), `agents/${name} must exist`).toBe(true);
+
+      const devBytes = readFileSync(devPath);
+      const pluginBytes = readFileSync(pluginPath);
+      // Byte-identical: differing contents fail the drift guard.
+      expect(
+        pluginBytes.equals(devBytes),
+        `agents/${name} must be byte-identical to .claude/agents/${name}`,
+      ).toBe(true);
+    }
+  });
+});
