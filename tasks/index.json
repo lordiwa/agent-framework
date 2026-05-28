@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-27T00:30:01Z",
+  "generated_at": "2026-05-27T01:30:01Z",
   "tasks": [
     {
       "key": "TASK-001",
@@ -58,6 +58,12 @@
     {
       "key": "TASK-012",
       "title": "bin/init.js entrypoint + CLAUDE.md first-chat routing for project intake",
+      "status": "done",
+      "priority": "high"
+    },
+    {
+      "key": "TASK-013",
+      "title": "Agent generator per project type — emit .claude/agents/project-context.md from PROJECT.md",
       "status": "done",
       "priority": "high"
     },

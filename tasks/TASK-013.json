@@ -1,0 +1,47 @@
+{
+  "key": "TASK-013",
+  "title": "Agent generator per project type — emit .claude/agents/project-context.md from PROJECT.md",
+  "description": "Fourth ticket of the six-ticket wizard chain (TASK-010..015). After `bin/init.js` writes PROJECT.md the framework still ships generic agents — every project gets the same developer/reviewer/researcher/orchestrator regardless of whether it's a `web-saas` or an `ml-model`. This ticket adds a generator that reads PROJECT.md and writes a single brief `.claude/agents/project-context.md` containing the project's stack and type-tailored guidance (testing conventions, lint expectations, type-specific gotchas). The four base agent files are amended ONCE in this ticket to instruct each subagent to read `project-context.md` before starting work.\n\n**Design choice locked by orchestrator (push back if wrong):** single brief file referenced by all four base agents, NOT N forked variants of each agent. Rationale: the four base files capture role (developer vs reviewer); a single project-context file captures stack (Python vs JS) and project type (web-saas vs ml-model). Splitting role × stack into 24 separate agent files would be a maintenance burden and would surface as 24 entries in any future agent-roster UI. The single-file approach keeps the role count fixed at 4 and the stack info in one place that's easy to inspect, regenerate, or edit.\n\nFirst non-wizard caller of `writeProjectMd` is no longer this ticket — `generateProjectContext` calls `readProjectMd` (read-only). But the TASK-016 hardening still applies because the generator is the first reader-from-disk caller outside the wizard's own round-trip tests, and any regression in PROJECT.md parsing surfaces here first.\n\n**Out of scope:** dynamic agent-tool whitelisting per project type, per-stack skill stub generation (that's the researcher's job when it first encounters the stack), and the non-technical README quickstart (TASK-015).",
+  "acceptance_criteria": [
+    "`src/agent-generator.js` exports `generateProjectContext({repoRoot, answers, now})` and writes `.claude/agents/project-context.md` via `atomicWriteFile`. Accepts an optional `answers` argument to skip the PROJECT.md read; when omitted, reads PROJECT.md via `readProjectMd`.",
+    "Generated file has YAML frontmatter with at minimum: `project_name`, `project_type`, `generated_at`, `schema_version: 1`. Body has stable section headings in this order: `## Stack`, `## Testing conventions`, `## Linting and formatting`, `## Type-specific guidance`.",
+    "Every value in the `PROJECT_TYPES` taxonomy from `src/question-library.js` (web-saas, cli-tool, data-pipeline, ml-model, library, other) has a dedicated `## Type-specific guidance` body with at minimum 3 bullet points. Bullets come from a per-type map declared at module top in `src/agent-generator.js` so a future contributor adds a type by editing one literal.",
+    "`bin/init.js` calls `generateProjectContext` after `writeProjectMd` succeeds in the `created` and `forced` branches. The existing `--force` semantics apply to the project-context file too (overwrites without prompting). The `already_initialized` branch does NOT regenerate (respects local edits to project-context.md).",
+    "The four base agent files (`.claude/agents/developer.md`, `reviewer.md`, `researcher.md`, `orchestrator.md`) each gain a single sentence in their Inputs/Workflow section instructing the subagent to read `.claude/agents/project-context.md` before starting work, with a one-line note that the file is generated and may not exist on fresh clones (in which case proceed with defaults).",
+    "`generateProjectContext` throws a clear named-file error if PROJECT.md is missing when `answers` is not provided. Error message names the missing file.",
+    "Tests cover: (a) all 6 project_type values produce a file with the right type-specific section, (b) atomic write semantics verified per the existing `atomicWriteFile` invariant pattern used elsewhere in the suite, (c) bin/init.js integration test confirming project-context.md lands on disk after a successful init, (d) the missing-PROJECT.md error path."
+  ],
+  "status": "done",
+  "priority": "high",
+  "labels": [
+    "wizard-chain",
+    "agent-generator",
+    "feature"
+  ],
+  "assignee": null,
+  "depends_on": [
+    "TASK-011",
+    "TASK-012",
+    "TASK-016"
+  ],
+  "linked_commits": [
+    "e118486",
+    "029f3f6"
+  ],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-27T01:00:00Z",
+      "body": "Created from the TASK-010 chain narrative (decision dated 2026-05-26T00:00:00Z). Gate was TASK-016 which closed at 2026-05-27T00:30:01Z; this ticket is now unblocked and proceeds immediately. Design choice — single project-context.md file shared by all four base agents vs. N forked role×stack variants — locked in favor of the single file in the description; developer is free to push back during research/planning if a hidden cost surfaces."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-27T01:30:00Z",
+      "body": "Reviewer verdict (fresh context): APPROVE-WITH-FOLLOWUPS. 0 HIGH, 0 MEDIUM, 3 LOW, 4 NIT. Re-ran npm test from clean state twice: 123/123 pass, ~4.8s, no flakes. All 7 ACs independently traced AND probed out of band: AC1-AC2 file shape, AC3 every PROJECT_TYPES value produces correct type-specific bullets, AC4 created/forced regenerate but already_initialized does not, AC5 all four base agents reference project-context.md, AC6 missing-PROJECT.md throws named error, AC7 atomic write invariant satisfied. The resumed-branch extension (dev shipped it in created/forced/resumed via shared helper, ticket only required created/forced) was independently evaluated: no clobber scenario reachable through normal use — vindicated as NIT, not LOW. The 3 LOWs are polish: (a) ROUNDTRIP_NOISE_IDS missing generated_at for symmetry (dormant since nothing populates answers.generated_at today), (b) TYPE_SPECIFIC_GUIDANCE keys not derived from PROJECT_TYPES — silent fallback to other if taxonomy widens, (c) unknown project_type emits typo verbatim in frontmatter while body falls back to other bullets. None block TASK-014. Deferred without new follow-up ticket per the TASK-016 close pattern. Commits: e118486 (test) + 029f3f6 (impl)."
+    }
+  ],
+  "created_at": "2026-05-27T01:00:00Z",
+  "updated_at": "2026-05-27T01:30:01Z",
+  "jira_key": null
+}
