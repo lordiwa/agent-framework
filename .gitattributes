@@ -1,0 +1,14 @@
+# Normalize line endings to LF for all text files, on every platform.
+# Rationale: git autocrlf was rewriting bin/*.js to CRLF on checkout/commit,
+# which left the `#!/usr/bin/env node` shebang as `#!...\r`. Vite's shebang
+# strip then failed to parse the file on dynamic import, breaking every spec
+# that imports a bin/ entrypoint. Forcing eol=lf keeps shebangs valid and the
+# byte-identical agent-parity copies stable across machines.
+* text=auto eol=lf
+
+# Belt-and-suspenders for the executable entrypoints whose shebang must stay LF.
+*.js text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+*.md text eol=lf
