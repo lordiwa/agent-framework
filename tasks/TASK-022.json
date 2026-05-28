@@ -20,6 +20,11 @@
       "author": "orchestrator",
       "at": "2026-05-28T22:40:00Z",
       "body": "Minted from TASK-020 spike §F (P2) + §B. The meatiest design section, but the impl is small per the audit. AC2's empirical CLAUDE_PROJECT_DIR check is the gating unknown — verify before assuming the fallback is unnecessary."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T23:00:00Z",
+      "body": "EMPIRICAL RESULT (orchestrator sensor, pre-chain): `CLAUDE_PROJECT_DIR` is UNSET in a Bash-tool subprocess on this machine/version (CLAUDE_CODE_SESSION_ID, CLAUDE_PROJECT_NAME, CLAUDECODE et al. ARE set — but not _DIR). HOWEVER `pwd`/`process.cwd()` of a Bash-tool call DOES equal the project root. Implications for P2: (1) the `process.env.CLAUDE_PROJECT_DIR ?? process.cwd()` binding is correct AND the cwd branch is the load-bearing one in practice — do not assume the env var exists; (2) the cwd fallback only holds if the invoking command's cwd is the project root (true for bin/ bare-command + `node` calls the Bash tool makes from the project root, but NOT if a command cd's elsewhere first); (3) the robust belt-and-suspenders is a SessionStart hook that EXPORTS CLAUDE_PROJECT_DIR (hooks reliably receive it per docs) so subprocesses inherit it regardless of cwd. Recommend implementing both the cwd fallback AND the SessionStart export. This downgrades AC2 from 'unknown' to 'known: env var absent, cwd works, add hook for robustness'."
     }
   ],
   "created_at": "2026-05-28T22:40:00Z",
