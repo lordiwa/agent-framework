@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-28T15:14:41.257Z",
+  "generated_at": "2026-05-28T21:40:00Z",
   "tasks": [
     {
       "key": "TASK-001",
@@ -96,6 +96,12 @@
       "title": "Align corruption-handling policy across bin/init.js#countFrameworkHistory and backlog seeder",
       "status": "done",
       "priority": "low"
+    },
+    {
+      "key": "TASK-019",
+      "title": "Template-prep command — produce a pristine clone-ready distribution from the dev repo",
+      "status": "done",
+      "priority": "medium"
     }
   ]
 }
