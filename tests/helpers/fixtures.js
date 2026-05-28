@@ -185,6 +185,7 @@ export const PROD = Object.freeze({
   projectMd: prodUrl('project-md.js'),
   agentGenerator: prodUrl('agent-generator.js'),
   backlogSeeder: prodUrl('backlog-seeder.js'),
+  frameworkHistory: prodUrl('framework-history.js'),
   newTaskCli: binUrl('new-task.js'),
   init: binUrl('init.js'),
 });

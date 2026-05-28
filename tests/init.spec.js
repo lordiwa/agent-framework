@@ -368,6 +368,296 @@ describe('AC6 — CLAUDE.md first-chat routing', () => {
 });
 
 // ===========================================================================
+// TASK-015 AC6 — argv strictness regression: positional tokens (anything not
+// in KNOWN_FLAGS, including non-`--` tokens) must throw with the offending
+// token named in the message. Mirrors bin/new-task.js's existing behavior.
+// ===========================================================================
+describe('TASK-015 AC6 — argv strict-positional rejection', () => {
+  it('unknown_positional_token_throws_with_token_name', async () => {
+    const { runInit } = await import(PROD.init);
+
+    const repoDir = makeTmpDir('af-init-strict-positional');
+
+    // No leading `--` — this is a positional token. Pre-TASK-015 behavior
+    // silently dropped it; TASK-015 requires it surface as an error naming
+    // the offending token. Choose a token that is also NOT a valid flag.
+    await expect(
+      runInit({
+        argv: ['stray-positional'],
+        prompter: throwIfCalled(),
+        repoRoot: repoDir,
+        now: () => FIXED_NOW,
+        hostname: FIXED_HOST,
+      }),
+    ).rejects.toThrow(/stray-positional/);
+  });
+
+  it('no_archive_is_a_recognized_flag_not_a_stray_positional', async () => {
+    // After TASK-015 adds --no-archive to KNOWN_FLAGS, passing it on an
+    // empty repo must NOT throw an "unknown flag" error. This guard
+    // exists so the impl can't accidentally regress AC3 (--no-archive
+    // suppresses the prompt) by leaving --no-archive out of KNOWN_FLAGS.
+    const { runInit } = await import(PROD.init);
+
+    const repoDir = makeTmpDir('af-init-no-archive-known');
+    const prompter = makeScriptedPrompter(webSaasAnswers());
+
+    const result = await runInit({
+      argv: ['--no-archive'],
+      prompter,
+      repoRoot: repoDir,
+      now: () => FIXED_NOW,
+      hostname: FIXED_HOST,
+    });
+
+    // Fresh repo with no framework history — branch is `created`, --no-archive
+    // is irrelevant here, but the flag MUST be accepted without complaint.
+    expect(result.state).toBe('created');
+  });
+});
+
+// ===========================================================================
+// TASK-015 AC7d/AC7e/AC7f — bin/init.js integration with framework-history
+// archive. Three scenarios:
+//   d. created + framework history + default-Y (empty input) → archive runs.
+//   e. --no-archive suppresses the prompt and leaves tasks/ untouched.
+//   f. forced branch (PROJECT.md exists, --force passed) does NOT archive.
+// ===========================================================================
+describe('TASK-015 AC7d — created branch archives on default-Y prompt', () => {
+  it('created_branch_archives_framework_history_when_user_confirms', async () => {
+    const { runInit } = await import(PROD.init);
+
+    const repoDir = makeTmpDir('af-init-archive-default-y');
+    // Seed framework history: three tickets, none labeled `seed`.
+    const tasksDir = join(repoDir, 'tasks');
+    mkdirSync(tasksDir, { recursive: true });
+    for (const k of ['TASK-001', 'TASK-002', 'TASK-003']) {
+      writeFileSync(
+        join(tasksDir, `${k}.json`),
+        JSON.stringify({
+          key: k,
+          title: `Synthetic ${k}`,
+          description: 'framework history',
+          acceptance_criteria: ['x'],
+          status: 'todo',
+          priority: 'medium',
+          labels: ['framework'],
+          assignee: null,
+          depends_on: [],
+          linked_commits: [],
+          linked_prs: [],
+          comments: [],
+          created_at: '2026-05-27T00:00:00Z',
+          updated_at: '2026-05-27T00:00:00Z',
+          jira_key: null,
+        }, null, 2),
+        'utf8',
+      );
+    }
+
+    // The prompter answers the framework-history archive prompt with empty
+    // string (default-Y). The scripted-prompter resolves by matching
+    // ctx.prompt against PROMPT_SIGNATURES; the archive prompt has no
+    // signature there, so we wrap with our own router: anything whose prompt
+    // text contains the literal 'Archive' returns empty string; everything
+    // else falls through to the wizard's scripted answers.
+    const wizard = makeScriptedPrompter(webSaasAnswers({
+      project_name: 'fresh-after-archive',
+    }));
+    const prompter = async (ctx) => {
+      if (typeof ctx?.prompt === 'string' && /archive/i.test(ctx.prompt)) {
+        return ''; // empty input → default Y
+      }
+      return wizard(ctx);
+    };
+
+    const result = await runInit({
+      argv: [],
+      prompter,
+      repoRoot: repoDir,
+      now: () => FIXED_NOW,
+      hostname: FIXED_HOST,
+    });
+
+    expect(result.state).toBe('created');
+
+    // tasks/ no longer contains the framework-history tickets — they were
+    // moved to .framework-history/tasks/ before the seeder ran.
+    const archiveDir = join(repoDir, '.framework-history', 'tasks');
+    expect(existsSync(archiveDir)).toBe(true);
+    const archivedNames = readdirSync(archiveDir)
+      .filter((n) => /^TASK-\d{3,}\.json$/.test(n))
+      .sort();
+    expect(archivedNames).toEqual(['TASK-001.json', 'TASK-002.json', 'TASK-003.json']);
+
+    // The post-archive seeder still ran — fresh seed tickets exist under
+    // tasks/ and they carry the `seed` label (the only labels present).
+    const remainingTaskFiles = readdirSync(join(repoDir, 'tasks'))
+      .filter((n) => /^TASK-\d{3,}\.json$/.test(n));
+    expect(
+      remainingTaskFiles.length,
+      'seeder must run after archive in the created branch',
+    ).toBeGreaterThan(0);
+    for (const name of remainingTaskFiles) {
+      const t = JSON.parse(readFileSync(join(repoDir, 'tasks', name), 'utf8'));
+      expect(t.labels).toContain('seed');
+    }
+  });
+});
+
+describe('TASK-015 AC7e — --no-archive suppresses the prompt and the move', () => {
+  it('no_archive_flag_leaves_framework_tickets_in_place', async () => {
+    const { runInit } = await import(PROD.init);
+
+    const repoDir = makeTmpDir('af-init-no-archive');
+    const tasksDir = join(repoDir, 'tasks');
+    mkdirSync(tasksDir, { recursive: true });
+    for (const k of ['TASK-001', 'TASK-002']) {
+      writeFileSync(
+        join(tasksDir, `${k}.json`),
+        JSON.stringify({
+          key: k,
+          title: `Synthetic ${k}`,
+          description: 'framework history',
+          acceptance_criteria: ['x'],
+          status: 'todo',
+          priority: 'medium',
+          labels: ['framework'],
+          assignee: null,
+          depends_on: [],
+          linked_commits: [],
+          linked_prs: [],
+          comments: [],
+          created_at: '2026-05-27T00:00:00Z',
+          updated_at: '2026-05-27T00:00:00Z',
+          jira_key: null,
+        }, null, 2),
+        'utf8',
+      );
+    }
+
+    // Use a prompter that throws if the archive prompt fires — proves the
+    // flag suppresses the prompt entirely rather than auto-answering.
+    const wizard = makeScriptedPrompter(webSaasAnswers());
+    const prompter = async (ctx) => {
+      if (typeof ctx?.prompt === 'string' && /archive/i.test(ctx.prompt)) {
+        throw new Error(
+          `--no-archive must suppress the archive prompt entirely; got prompt: ${ctx.prompt}`,
+        );
+      }
+      return wizard(ctx);
+    };
+
+    const result = await runInit({
+      argv: ['--no-archive'],
+      prompter,
+      repoRoot: repoDir,
+      now: () => FIXED_NOW,
+      hostname: FIXED_HOST,
+    });
+
+    expect(result.state).toBe('created');
+
+    // No archive directory was created.
+    expect(existsSync(join(repoDir, '.framework-history'))).toBe(false);
+
+    // The framework-history tickets still sit under tasks/ untouched.
+    for (const k of ['TASK-001', 'TASK-002']) {
+      expect(
+        existsSync(join(repoDir, 'tasks', `${k}.json`)),
+        `${k} must remain in tasks/ when --no-archive is passed`,
+      ).toBe(true);
+    }
+  });
+});
+
+describe('TASK-015 AC7f — forced branch does NOT trigger archive', () => {
+  it('forced_branch_leaves_existing_tasks_untouched', async () => {
+    const { runInit } = await import(PROD.init);
+    const { writeProjectMd } = await import(PROD.projectMd);
+
+    const repoDir = makeTmpDir('af-init-forced-no-archive');
+    // PROJECT.md exists → with --force, the branch is `forced`, not `created`.
+    await writeProjectMd({
+      repoRoot: repoDir,
+      answers: {
+        project_name: 'pre-existing',
+        project_type: 'web-saas',
+        project_description: 'd',
+        target_users: 't',
+        primary_use_cases: ['automation'],
+        success_criteria: 's',
+      },
+      now: () => FIXED_NOW,
+    });
+    // Seed framework history so a misbehaving `forced` branch would have
+    // something to move. AC7f says it must NOT move them.
+    const tasksDir = join(repoDir, 'tasks');
+    mkdirSync(tasksDir, { recursive: true });
+    for (const k of ['TASK-001', 'TASK-002']) {
+      writeFileSync(
+        join(tasksDir, `${k}.json`),
+        JSON.stringify({
+          key: k,
+          title: `Synthetic ${k}`,
+          description: 'framework history',
+          acceptance_criteria: ['x'],
+          status: 'todo',
+          priority: 'medium',
+          labels: ['framework'],
+          assignee: null,
+          depends_on: [],
+          linked_commits: [],
+          linked_prs: [],
+          comments: [],
+          created_at: '2026-05-27T00:00:00Z',
+          updated_at: '2026-05-27T00:00:00Z',
+          jira_key: null,
+        }, null, 2),
+        'utf8',
+      );
+    }
+
+    // Archive prompt MUST NOT fire in the forced branch — throw if it does.
+    const wizard = makeScriptedPrompter(webSaasAnswers());
+    const prompter = async (ctx) => {
+      if (typeof ctx?.prompt === 'string' && /archive/i.test(ctx.prompt)) {
+        throw new Error(
+          `forced branch must not trigger the archive prompt; got: ${ctx.prompt}`,
+        );
+      }
+      return wizard(ctx);
+    };
+
+    const result = await runInit({
+      argv: ['--force'],
+      prompter,
+      repoRoot: repoDir,
+      now: () => FIXED_NOW,
+      hostname: FIXED_HOST,
+    });
+
+    expect(result.state).toBe('forced');
+
+    // No archive directory was created.
+    expect(existsSync(join(repoDir, '.framework-history'))).toBe(false);
+
+    // The pre-existing framework-history tickets are still under tasks/.
+    // (The seeder also skips because they carry no `seed` label — wait,
+    // actually the seeder mints regardless if no existing ticket carries
+    // `seed`. The framework-history tickets don't have `seed`, so the
+    // seeder WILL run and mint new tickets too. We only assert the
+    // pre-existing two survive untouched.)
+    for (const k of ['TASK-001', 'TASK-002']) {
+      expect(
+        existsSync(join(repoDir, 'tasks', `${k}.json`)),
+        `${k} must remain in tasks/ in the forced branch`,
+      ).toBe(true);
+    }
+  });
+});
+
+// ===========================================================================
 // AC1 — engine-shape prompter is what reaches the wizard.
 // ===========================================================================
 describe('AC1 — prompter contract', () => {

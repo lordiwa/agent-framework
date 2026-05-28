@@ -13,6 +13,7 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { PROD, makeRepoSkeleton } from './helpers/fixtures.js';
 import { makeTmpDir, cleanupAll } from './helpers/tmpRepo.js';
@@ -182,6 +183,63 @@ describe('AC1 — interactive (no args)', () => {
       (p) => p.toLowerCase().includes('title'),
     );
     expect(titlePrompts.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ===========================================================================
+// TASK-015 AC5 — source-hygiene sweep on bin/new-task.js.
+//   (a) The typo `engineerPrompter` must be gone (corrected to `enginePrompter`).
+//   (b) The dead-code `validate` on the title question must be removed (the
+//       `required: true` already covers empty-string rejection — keep ac_count's
+//       `validate` which guards the >=1 numeric range, not emptiness).
+// We assert by reading the source of bin/new-task.js — a behavioral test
+// cannot distinguish "validate removed" from "validate present but unused
+// because required: true short-circuits first".
+// ===========================================================================
+describe('TASK-015 AC5 — bin/new-task.js source hygiene', () => {
+  it('typo_engineerPrompter_is_gone_renamed_to_enginePrompter', () => {
+    const src = readFileSync(fileURLToPath(PROD.newTaskCli), 'utf8');
+    expect(
+      src.includes('engineerPrompter'),
+      'bin/new-task.js must not contain the typo `engineerPrompter` (rename to `enginePrompter`)',
+    ).toBe(false);
+    expect(
+      src.includes('enginePrompter'),
+      'bin/new-task.js must use the corrected name `enginePrompter` (the adapter binding)',
+    ).toBe(true);
+  });
+
+  it('dead_validate_on_title_question_is_removed', () => {
+    const src = readFileSync(fileURLToPath(PROD.newTaskCli), 'utf8');
+    // The title question lives inside the `headQuestions` block. Locate the
+    // title question literal and confirm no `validate:` key sits inside it.
+    // A `Title:` prompt string is the unique landmark for the title question.
+    const titleIdx = src.indexOf("'Title:'");
+    expect(
+      titleIdx,
+      "bin/new-task.js must still define the title question via 'Title:' prompt",
+    ).toBeGreaterThan(-1);
+    // Look forward from the title prompt to the next `})` closing the
+    // push() call (the title question is wrapped in `headQuestions.push({…})`).
+    // The title-question's `validate:` line (if present) must NOT appear in
+    // that window. 400 chars is enough to cover a multi-line question object
+    // without bleeding into the next question.
+    const titleBlock = src.slice(titleIdx, titleIdx + 400);
+    const closingIdx = titleBlock.search(/}\s*\)\s*;/);
+    expect(
+      closingIdx,
+      'expected the title question to close with `});` within 400 chars of `Title:`',
+    ).toBeGreaterThan(-1);
+    const titleQuestion = titleBlock.slice(0, closingIdx);
+    expect(
+      /\bvalidate\s*:/.test(titleQuestion),
+      'title question must not carry a dead-code `validate:` — `required: true` already covers empty rejection',
+    ).toBe(false);
+    // Sanity check — `required: true` should still be present on the title.
+    expect(
+      titleQuestion.includes('required'),
+      "title question must retain `required: true` (the validate's replacement)",
+    ).toBe(true);
   });
 });
 
