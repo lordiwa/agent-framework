@@ -23,7 +23,7 @@
 //     forwarded directly (no adaptation) — runInit's contract IS the engine
 //     contract, unlike bin/new-task.js which wraps a legacy (text)=>string.
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline/promises';
@@ -36,26 +36,79 @@ import { buildIntakeQuestions } from '../src/question-library.js';
 import { writeProjectMd, readProjectMd } from '../src/project-md.js';
 import { generateProjectContext } from '../src/agent-generator.js';
 import { seedBacklog } from '../src/backlog-seeder.js';
+import { archiveFrameworkHistory } from '../src/framework-history.js';
 
-const KNOWN_FLAGS = new Set(['--force', '--help']);
+const KNOWN_FLAGS = new Set(['--force', '--help', '--no-archive']);
+const TASK_FILE_RE = /^TASK-\d{3,}\.json$/;
 
 /**
- * Parse argv. Throws on any flag (token starting with `--`) not in KNOWN_FLAGS,
- * with the offending flag name in the message so typos surface fast.
+ * Parse argv. Every token must be a recognized long flag; positional tokens
+ * (anything not in KNOWN_FLAGS) throw with the offending token in the message,
+ * matching bin/new-task.js's strictness so typos and stray args surface fast.
  */
 function parseArgs(argv) {
-  const out = { force: false, help: false };
+  const out = { force: false, help: false, noArchive: false };
   for (const tok of argv) {
-    if (tok.startsWith('--')) {
-      if (!KNOWN_FLAGS.has(tok)) {
-        throw new Error(`unknown flag: ${tok}`);
-      }
-      if (tok === '--force') out.force = true;
-      if (tok === '--help') out.help = true;
+    if (!KNOWN_FLAGS.has(tok)) {
+      throw new Error(`unknown argument: ${tok}`);
     }
-    // Non-flag positionals are accepted-and-ignored — init takes none today.
+    if (tok === '--force') out.force = true;
+    if (tok === '--help') out.help = true;
+    if (tok === '--no-archive') out.noArchive = true;
   }
   return out;
+}
+
+/**
+ * Lightweight peek at <repoRoot>/tasks/ for the archive prompt. Returns the
+ * count of TASK-NNN.json files that look like framework history (i.e. none
+ * carry the `seed` label). Returns 0 when:
+ *   - tasks/ is absent, OR
+ *   - no TASK-NNN.json files exist, OR
+ *   - any existing TASK-NNN.json carries the `seed` label.
+ * Mirrors archiveFrameworkHistory's detection so the user is never prompted
+ * for an archive that would no-op.
+ */
+function countFrameworkHistory(repoRoot) {
+  const tasksDir = join(repoRoot, 'tasks');
+  if (!existsSync(tasksDir)) return 0;
+  const taskFiles = readdirSync(tasksDir).filter((n) => TASK_FILE_RE.test(n));
+  if (taskFiles.length === 0) return 0;
+  for (const name of taskFiles) {
+    try {
+      const t = JSON.parse(readFileSync(join(tasksDir, name), 'utf8'));
+      if (Array.isArray(t.labels) && t.labels.includes('seed')) {
+        return 0;
+      }
+    } catch {
+      // Corrupt ticket: treat as framework history (consistent with archive).
+    }
+  }
+  return taskFiles.length;
+}
+
+/**
+ * Ask the user whether to archive pre-existing framework-history tickets, then
+ * invoke archiveFrameworkHistory on consent. Skipped entirely when:
+ *   - the caller passed --no-archive, OR
+ *   - the peek finds nothing to archive.
+ *
+ * Decision rule: empty input OR a Y/y prefix → archive; anything else → skip.
+ */
+async function maybeArchiveFrameworkHistory({ repoRoot, prompter, noArchive, now }) {
+  if (noArchive) return;
+  const count = countFrameworkHistory(repoRoot);
+  if (count === 0) return;
+  const answer = await prompter({
+    prompt:
+      `Detected ${count} pre-existing tickets that look like framework history. ` +
+      'Archive them so this project starts fresh? [Y/n]',
+    type: 'string',
+  });
+  const trimmed = typeof answer === 'string' ? answer.trim() : '';
+  const consent = trimmed === '' || /^y/i.test(trimmed);
+  if (!consent) return;
+  await archiveFrameworkHistory({ repoRoot, now });
 }
 
 /**
@@ -162,6 +215,16 @@ export async function runInit({
   }
 
   // ---- Branch 4: created ----
+  // The archive prompt is strictly a created-branch concern. forced and
+  // already_initialized both imply the project has past-the-archive state on
+  // disk; resumed already has a half-answered wizard and replaying the
+  // archive prompt mid-resume would be jarring.
+  await maybeArchiveFrameworkHistory({
+    repoRoot,
+    prompter,
+    noArchive: parsed.noArchive,
+    now,
+  });
   const { sessionId } = await startSession({ repoRoot });
   await runWizardAndWriteProjectMd({ repoRoot, sessionId, prompter, now });
   return { state: 'created', projectMdPath, sessionId };

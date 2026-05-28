@@ -79,7 +79,7 @@ function adaptPrompter(legacyPrompter) {
  */
 export async function runCli({ argv, prompter, repoRoot, now }) {
   const parsed = parseArgs(argv);
-  const engineerPrompter = adaptPrompter(prompter);
+  const enginePrompter = adaptPrompter(prompter);
 
   // Prompt order when nothing is supplied: title, description, ac-count,
   // ac1..acN, priority. AC count is dynamic, so we use three engine
@@ -94,7 +94,6 @@ export async function runCli({ argv, prompter, repoRoot, now }) {
       type: 'string',
       prompt: 'Title:',
       required: true,
-      validate: (v) => (v.trim().length > 0 ? null : 'title cannot be empty'),
     });
   }
   if (parsed.description === undefined) {
@@ -118,7 +117,7 @@ export async function runCli({ argv, prompter, repoRoot, now }) {
   if (headQuestions.length > 0) {
     const result = await runQuestionnaire({
       questions: headQuestions,
-      prompter: engineerPrompter,
+      prompter: enginePrompter,
       persistTo: null,
       now,
     });
@@ -140,7 +139,7 @@ export async function runCli({ argv, prompter, repoRoot, now }) {
     }
     const acResult = await runQuestionnaire({
       questions: acQuestions,
-      prompter: engineerPrompter,
+      prompter: enginePrompter,
       persistTo: null,
       now,
     });
@@ -157,7 +156,7 @@ export async function runCli({ argv, prompter, repoRoot, now }) {
         prompt: 'Priority (low|medium|high|critical):',
         enum: ['low', 'medium', 'high', 'critical'],
       }],
-      prompter: engineerPrompter,
+      prompter: enginePrompter,
       persistTo: null,
       now,
     });
