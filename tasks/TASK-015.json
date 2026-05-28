@@ -1,0 +1,49 @@
+{
+  "key": "TASK-015",
+  "title": "UX polish — README quickstart, framework-history archive on init, accumulated punch-list sweep",
+  "description": "Sixth and final ticket of the wizard chain (TASK-010..015). The wizard now works end-to-end: clone → `node bin/init.js` → PROJECT.md → project-context.md → seeded backlog. But a non-technical operator opening the repo still has zero onboarding documentation, AND the seeded backlog lives alongside the framework's own 17+ historical tickets (TASK-001..TASK-017). This ticket closes both gaps and sweeps the small punch-list items that have accumulated from prior reviews.\n\n## In scope\n\n1. **README.md non-technical quickstart at repo root.** Currently there's no top-level README aimed at first-time operators. Write one that walks a non-technical user through: (a) what this framework is, in two sentences; (b) prerequisites (Node ≥20, git); (c) `node bin/init.js` and what to expect; (d) what the wizard produces (PROJECT.md, .claude/agents/project-context.md, seeded tickets); (e) how to ask Claude Code to start working on the first ticket. Keep it under 200 lines. No jargon — assume the reader has never heard of subagents or atomic writes.\n\n2. **Framework-history archive on init.** When `bin/init.js` runs the `created` branch and detects pre-existing framework tickets in `tasks/` (heuristic: at least one ticket file exists AND none of them carry the `seed` label), prompt the user: `'Detected 17 pre-existing tickets that look like framework history. Archive them so this project starts fresh? [Y/n]'`. On 'Y' (or empty), move every `tasks/TASK-*.json` file to `.framework-history/tasks/` (creating the directory) and regenerate `tasks/index.json` empty. On 'n', leave alone (framework-dev mode). The `--force` flag implies 'Y'. The `already_initialized` branch does NOT trigger this. Add a `--no-archive` flag for non-interactive 'n'.\n\n3. **Sweep TASK-010 LOWs.** `bin/new-task.js` has a dead-code `validate` on the title question (already covered by `required: true`) and a typo `engineerPrompter` (should be `enginePrompter`). Remove both, atomically.\n\n4. **Sweep TASK-012 LOW.** `bin/init.js`'s argv parser silently ignores positional tokens; `bin/new-task.js` throws on any unrecognized token. Bring `bin/init.js` in line — throw with a clear message naming the unrecognized token.\n\n## Out of scope\n\n- Sweeping the deferred LOWs from TASK-013 (3 items) and TASK-014 (now spun into TASK-017). Those have explicit homes already.\n- The TASK-014 reviewer's MEDIUMs — handled by TASK-009 AC7 and TASK-017.\n- Designing a `gsd-update`-style mechanism for migrating an existing project to a newer framework version. Future ticket if/when relevant.\n- Documenting every CLI flag exhaustively. README is a quickstart, not a reference manual.",
+  "acceptance_criteria": [
+    "A new `README.md` at repo root walks a non-technical operator through clone → `node bin/init.js` → first ticket. Includes: framework one-liner, prerequisites, exact init command, expected wizard output, and the recommended first chat prompt for Claude Code. Under 200 lines. No mention of internal terms like `subagent`, `atomic write`, `bundle`, or `PROD map`.",
+    "`bin/init.js`'s `created` branch (when invoked on a repo with at least one `tasks/TASK-*.json` and zero of those tickets carry the `seed` label) prompts the user to archive the pre-existing tickets. Default response (empty input) is 'Y'. On 'Y', every matching ticket file is moved to `.framework-history/tasks/` (created if absent), and `tasks/index.json` is regenerated reflecting the empty store. On 'n', the tasks/ directory is left alone.",
+    "The archive prompt is suppressed when `--no-archive` is passed on the command line (implies 'n'). No flag suppresses-to-'Y' — the prompt default is already 'Y' on empty input, so a non-interactive 'archive yes' caller can pipe an empty line. `--force` controls PROJECT.md regeneration only and does NOT touch the archive decision (the `created` and `forced` branches are mutually exclusive — archive only fires in `created`).",
+    "The archive logic lives in a new exported function, `archiveFrameworkHistory({repoRoot, now})`, in either `src/backlog-seeder.js` or a new `src/framework-history.js` (developer's call — pick the simpler home). Function returns `{archived: <string[]>}` listing the moved ticket keys; returns `{archived: []}` when no framework history is detected (no pre-existing tickets OR any pre-existing ticket carries the `seed` label).",
+    "`bin/new-task.js`: the dead-code `validate` on the title question is removed (the `required: true` already covers empty-string rejection), AND the typo `engineerPrompter` is corrected to `enginePrompter`. All existing new-task tests continue to pass.",
+    "`bin/init.js`'s argv parser throws on any unrecognized positional token, with an error message that names the offending token (matching `bin/new-task.js`'s existing behavior). A regression test exercises the failure path.",
+    "Tests cover: (a) archiveFrameworkHistory with framework history present → returns the moved keys + on-disk files moved, (b) with seed-labeled tickets present → returns empty (no archive), (c) with empty tasks/ → returns empty, (d) bin/init.js integration: a created-branch init against a tmp repo with framework history triggers the archive after user confirms with empty input (default 'Y'), (e) --no-archive flag skips the prompt and leaves tasks/ alone, (f) `forced` branch (PROJECT.md exists, --force passed) does NOT touch tasks/, (g) bin/init.js argv strictness regression."
+  ],
+  "status": "done",
+  "priority": "high",
+  "labels": [
+    "wizard-chain",
+    "ux-polish",
+    "docs",
+    "feature"
+  ],
+  "assignee": null,
+  "depends_on": [
+    "TASK-010",
+    "TASK-012",
+    "TASK-013",
+    "TASK-014"
+  ],
+  "linked_commits": [
+    "77fd667",
+    "c48c637"
+  ],
+  "linked_prs": [],
+  "comments": [
+    {
+      "author": "orchestrator",
+      "at": "2026-05-27T03:00:00Z",
+      "body": "Created from the TASK-010 chain narrative (decision dated 2026-05-26T00:00:00Z). All gates cleared — TASK-014 closed at 2026-05-27T02:30:02Z. Final ticket of the six-ticket wizard chain. The framework-history archive is the riskier piece of the ticket (touches tasks/ semantics) but is necessary for the cloneable-by-non-technical-operator promise from the TASK-010 decision. Default-Y prompt keeps the happy path frictionless; --no-archive escape hatch preserves framework-dev mode. The archive only fires in the `created` branch — `already_initialized`, `forced`, and `resumed` all skip it (forced+archive would mean the user opted into both PROJECT.md regen AND archive, which is the same as a fresh start)."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-28T00:00:00Z",
+      "body": "Reviewer verdict (fresh context): APPROVE-WITH-FOLLOWUPS. 0 HIGH, 0 MEDIUM, 3 LOW, 3 NIT — cleanest review of the wizard chain. Re-ran npm test from clean state twice: 155/155 pass, ~8.5s, no flakes. All 7 ACs traced AND probed out of band: AC1 README content verified to actually be readable by a non-technical operator (not just pass-the-tests); AC2-4 archive function passed all 6 probes (seed short-circuit no disk mutation, non-TASK files stay, empty tasks/ no archive dir, absent tasks/ no crash, corrupt ticket treated as framework history, identically-named pre-existing archive file silently clobbered by live); move op is renameSync (atomic same-volume); AC5 engineerPrompter→enginePrompter rename complete, dead title-validate removed, ac_count validate preserved; AC6 argv strict throws on stray positional; AC7 all test cases verified. The 3 LOWs are polish: (a) partial-archive failure mode — renameSync mid-loop has no rollback, so EACCES mid-archive leaves N of M tickets moved; (b) error message says 'unknown argument' vs bin/new-task.js 'unknown flag' — cosmetic divergence; (c) no on-screen post-archive confirmation (operator types Enter, next wizard question fires with no visual feedback that N tickets moved). The 3 NITs are even smaller. None block anything — deferred without follow-up ticket per the TASK-013/TASK-016 close pattern. Commits: 77fd667 (test) + c48c637 (impl)."
+    }
+  ],
+  "created_at": "2026-05-27T03:00:00Z",
+  "updated_at": "2026-05-28T00:00:01Z",
+  "jira_key": null
+}

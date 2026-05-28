@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-27T02:30:02Z",
+  "generated_at": "2026-05-28T00:00:01Z",
   "tasks": [
     {
       "key": "TASK-001",
@@ -70,6 +70,12 @@
     {
       "key": "TASK-014",
       "title": "Backlog seeder — generate starter tickets from intake use cases",
+      "status": "done",
+      "priority": "high"
+    },
+    {
+      "key": "TASK-015",
+      "title": "UX polish — README quickstart, framework-history archive on init, accumulated punch-list sweep",
       "status": "done",
       "priority": "high"
     },
