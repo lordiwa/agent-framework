@@ -46,50 +46,46 @@ saved chat memory, and an orchestrator you talk to in plain English.
 ## Install as a Claude Code plugin
 
 The quickest way in — you never clone anything. You only need **Claude Code**
-installed (link in *Prerequisites* below).
-
-**Step 1 — Add the marketplace.** A "marketplace" is just where Claude Code
-downloads the team from. Point it at this repository's web address (or its
-folder on your machine):
+and Node.js 20+ (see *Prerequisites*). Replace `<this-repo-url>` with this
+repository's web address (e.g.
+`https://github.com/lordiwa/agent-framework.git`) or its folder on your machine.
 
 ```bash
+# 1. Register the marketplace (once per machine)
 claude plugin marketplace add <this-repo-url>
-```
 
-Expect a confirmation that `agentic-framework-marketplace` was added.
-
-**Step 2 — Install the plugin:**
-
-```bash
+# 2. Install the team — orchestrator + helpers, available in every chat
 claude plugin install agentic-framework@agentic-framework-marketplace
+
+# 3. Confirm it registered (command, skills, agents, MCP server)
+claude plugin details agentic-framework
 ```
 
-Expect a confirmation that `agentic-framework` was installed. The orchestrator
-and its helpers are now available in every Claude Code chat.
-
-**Step 3 — Set up your project.** Go to the folder where you want to build
-something (an empty folder is perfect), start Claude Code there, and run this in
-the chat:
+Then go to the folder where you want to build something (an empty folder is
+perfect), start Claude Code there, and run the bootstrap command in the chat:
 
 ```text
 /agentic-framework:init-project
 ```
 
-It asks a few questions — your project's name, what kind it is, who it is for,
-the main things it should do, and the stack — then writes everything into *your*
-folder: a `PROJECT.md` summary, a starter backlog under `tasks/`, the saved
-state under `state/`, and a routing note for the orchestrator.
+It asks a few questions — name, kind of project, who it is for, the main things
+it should do, and the stack — then writes everything into *your* folder: a
+`PROJECT.md` summary, a starter backlog under `tasks/`, the saved state under
+`state/`, and a routing note for the orchestrator. No extra install step on your
+side.
 
-**Step 4 — Start your first chat.** Tell the orchestrator what to do. For your
-very first message, copy and paste this:
+**Your first chat.** Tell the orchestrator what to do. For your very first
+message, copy and paste this:
 
 > Read `PROJECT.md` and the `tasks/` directory. Tell me which seeded ticket
 > you would like to start with and why. Wait for my confirmation before
 > opening it.
 
-It proposes a ticket to begin with and — once you confirm — runs the full
-workflow: research, failing tests first, implementation, review, then closing
-the ticket. Every later chat works the same way.
+It proposes a ticket and — once you confirm — runs the full workflow: research,
+failing tests first, implementation, review, then closing the ticket. Every
+later chat works the same way. To update or remove the plugin later, use
+`claude plugin update`, `claude plugin uninstall`, or `claude plugin marketplace
+remove agentic-framework-marketplace`.
 
 ---
 
