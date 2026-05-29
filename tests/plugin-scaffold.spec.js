@@ -46,7 +46,13 @@ const REPO_LOCAL_SKILL = 'tech-training-template';
 // grew, so the "no global sweep" assertion below now pins BOTH repo-local skills
 // (still excluding any global gsd-*/vue/etc.).
 const BACKSTOP_SKILL = 'orchestrator-routing';
-const REPO_LOCAL_SKILLS = [BACKSTOP_SKILL, REPO_LOCAL_SKILL].sort();
+// TASK-026 — the mcp-server training skill is a THIRD legitimately shipped
+// repo-local skill (authored by the researcher for the MCP task-store server).
+// It exists on disk in BOTH skills/ and .claude/skills/, so the "no global
+// sweep" assertion below now pins all THREE repo-local skills (still excluding
+// any global gsd-*/vue/etc.).
+const MCP_SKILL = 'mcp-server';
+const REPO_LOCAL_SKILLS = [BACKSTOP_SKILL, REPO_LOCAL_SKILL, MCP_SKILL].sort();
 
 /** Read + JSON.parse a manifest, surfacing a clear failure when it's absent. */
 function readJson(path) {
@@ -70,16 +76,16 @@ describe('AC1 — .claude-plugin/plugin.json declares the plugin', () => {
     expect(manifest.name).toBe('agentic-framework');
   });
 
-  it('plugin_mcpServers_is_unset_until_the_mcp_server_ships_in_P6', () => {
-    // SUPERSEDED BY TASK-027 P7 (orchestrator-authorized 2026-05-29): the
-    // original TASK-021 assertion pinned `mcpServers: "./.mcp.json"`, but that
-    // file is only created in P6 (TASK-026). A dangling mcpServers reference can
-    // make `claude plugin validate`/`install` fail, which would block the AC1
-    // E2E. The plugin ships NO MCP server until P6, so the key is REMOVED here;
-    // P6 will re-add both the key and the .mcp.json together. The dangling-
-    // reference guard below (publish-config.spec.js) makes the invariant explicit.
+  it('plugin_mcpServers_points_at_the_dot_mcp_json_now_that_P6_ships_it', () => {
+    // FLIPPED BY TASK-026 P6 (the MCP task-store server). The TASK-021 → P7
+    // interim state REMOVED `mcpServers` because .mcp.json did not exist yet (a
+    // dangling reference would fail `claude plugin validate`/`install`). P6 ships
+    // src/mcp-server.js + <REPO_ROOT>/.mcp.json TOGETHER and re-adds the key, so
+    // the assertion flips from "must be undefined" to "must point at ./.mcp.json".
+    // The publish-config no-dangling-reference guard then proves the file resolves.
+    // FAILS until the impl phase adds the key — correct tests-first state.
     const manifest = readJson(PLUGIN_MANIFEST);
-    expect(manifest.mcpServers).toBeUndefined();
+    expect(manifest.mcpServers).toBe('./.mcp.json');
   });
 
   it('plugin_version_is_pinned_for_publish', () => {
