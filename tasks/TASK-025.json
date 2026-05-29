@@ -8,21 +8,26 @@
     "An always-on routing backstop skill ships (skills/orchestrator-routing/) carrying the RESUME-FIRST sequence; `claude plugin details` shows it in the inventory.",
     "`agents/orchestrator.md` is reconciled to the v2 pointer/bundle model — a grep confirms zero remaining references to the v1 single-file session.json / <updated_at>.json archive scheme, and the agent text matches the contract in CLAUDE.md + state/README.md."
   ],
-  "status": "in_progress",
+  "status": "done",
   "priority": "high",
   "labels": ["plugin", "distribution", "plugin-chain", "orchestrator"],
   "assignee": "developer",
   "depends_on": ["TASK-024"],
-  "linked_commits": [],
+  "linked_commits": ["5d5c403", "715abc4"],
   "linked_prs": [],
   "comments": [
     {
       "author": "orchestrator",
       "at": "2026-05-28T22:40:00Z",
       "body": "Minted from TASK-020 spike §F (P5) + §C/§H. Carries the human-locked CLAUDE.md policy (prompt-once-then-marker-merge). AC4 reconciles the stale v1 orchestrator.md — the spike flagged this as the highest-risk correctness item in the whole package; do not ship it unreconciled."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-29T05:00:00Z",
+      "body": "CLOSED APPROVE-WITH-FOLLOWUPS (auto-close per standing plugin-chain authorization — green review, 0 HIGH / 0 MEDIUM). Tests-first 5d5c403 (4 spec files, 24 failing for the right reasons); impl 715abc4. Reviewer (fresh context): 0 HIGH / 0 MEDIUM / 2 LOW / 1 NIT, full suite 298 passed / 2 skipped DETERMINISTIC across two clean runs, dist/init.cjs == fresh build, exactly one shebang, v1-token grep across BOTH orchestrator.md copies = zero. ALL FOUR ACs MET. Delivered: (1) src/claude-md.js — pure mergeRoutingBlock(existing|null, routing) with exact markers `<!-- BEGIN/END agentic-framework routing -->`: absent→full block, present-no-marker→byte-preserving append, present-with-block→replace-only-the-block idempotent; routingBlockContent() carries v2 RESUME-FIRST + first-chat routing + workflow + etiquette. (2) Consent wired into runInit SEPARATE from wizard intake answers: answers-mode needs explicit signal (--claude-md-consent flag OR claude_md_consent:true) and writes WITHOUT prompting; interactive prompts EXACTLY once and only when no marker block exists (re-run replaces silently). Reviewer scrutinized the consent-swallow: writeOrchestratorRouting is OUTSIDE the try/catch and the production prompter is null (guard returns before catch), so a swallowed throw can never mask a write error — worst case is a no-write, CLAUDE.md never corrupted. (3) Always-on backstop skill skills/orchestrator-routing/SKILL.md (+ .claude/skills/ byte-identical mirror) — now visible in plugin inventory. (4) BOTH orchestrator.md copies reconciled v1→v2 (pointer+bundle model), byte-identical per agents-parity, cross-checked consistent with CLAUDE.md + state/README.md + session.schema.json — no new contradiction. AUTHORIZED existing-spec edit: tests/plugin-scaffold.spec.js skills-inventory assertion updated from [tech-training-template] to [orchestrator-routing, tech-training-template] — legitimate inventory change (skill genuinely ships), reviewer confirmed it strengthens (still exact-list, still excludes global skills), no other spec touched. commands/init-project.md gained a consent-step note. 2 LOWs DEFERRED without a follow-up ticket per chain close pattern (both non-blocking, framework never produces the states): (L1) mergeRoutingBlock degrades safely on adversarial/hand-corrupted markers (BEGIN-without-END appends a 2nd block) — robustness-only, user bytes always preserved, never throws; (L2) the bare catch on the consent prompter treats any throw as decline — tiny blast radius, consider narrowing/logging later. NIT: no explicit absent-file + interactive-consent matrix cell (covered by code-trace + the two adjacent cells). Net new tests +28 (270 → 298). Operational follow-up still pending for the chain: live `claude plugin details` sensor (run at install) — confirms the new skill + /init-project register."
     }
   ],
   "created_at": "2026-05-28T22:40:00Z",
-  "updated_at": "2026-05-28T22:40:00Z",
+  "updated_at": "2026-05-29T05:00:00Z",
   "jira_key": null
 }

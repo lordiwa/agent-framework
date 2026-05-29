@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-29T04:10:00Z",
+  "generated_at": "2026-05-29T05:00:00Z",
   "tasks": [
     {
       "key": "TASK-001",
@@ -136,7 +136,7 @@
     {
       "key": "TASK-025",
       "title": "Plugin chain P5: orchestrator ship + activation (generated project CLAUDE.md + backstop skill + reconcile orchestrator.md)",
-      "status": "in_progress",
+      "status": "done",
       "priority": "high"
     },
     {
