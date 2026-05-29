@@ -10,12 +10,16 @@
     "No SessionStart hook / NODE_PATH is introduced; a comment documents that the TASK-022 `resolveRepoRoot` cwd fallback satisfies project-root resolution for the bundled entrypoints (CLAUDE_PROJECT_DIR robustness moot under bundling).",
     "Full suite stays green (the rewritten tests-first specs pass post-impl; the abandoned bd1ac0e hook/planSetup specs are removed/replaced); zero regressions in the pre-existing suite."
   ],
-  "status": "in_progress",
+  "status": "done",
   "priority": "high",
   "labels": ["plugin", "distribution", "plugin-chain", "packaging"],
-  "assignee": "developer",
+  "assignee": null,
   "depends_on": ["TASK-022"],
-  "linked_commits": [],
+  "linked_commits": [
+    "37f313a",
+    "9845792",
+    "f456114"
+  ],
   "linked_prs": [],
   "comments": [
     {
@@ -42,9 +46,24 @@
       "author": "orchestrator",
       "at": "2026-05-29T01:45:00Z",
       "body": "APPROACH PIVOTED (human decision, supersedes the 01:10 lock): esbuild BUNDLE, not data-dir/NODE_PATH. The ESM-ignores-NODE_PATH finding made the data-dir approach require a fragile junction-into-the-ephemeral-cache-dir hack; bundling inlines deps so there is NO runtime resolution at all. Rejected: vendoring (commits hundreds of node_modules files) and the data-dir+junction (most moving parts, first-run npm/network, cross-platform junction). Consequences captured in the rewritten ACs: deps stay devDependencies; NO SessionStart hook; CLAUDE_PROJECT_DIR robustness is MOOT (resolveRepoRoot cwd fallback suffices); build output must be committed (un-ignore dist/). The bd1ac0e tests-first specs (planSetup/hooks.json) are now wrong-target and must be rewritten for esbuild before impl. The .gitattributes LF fix (dc9b5d1) keeps the bundled .cjs shebang valid."
+    },
+    {
+      "author": "developer",
+      "at": "2026-05-29T02:45:00Z",
+      "body": "IMPL complete via esbuild bundling. Commits: 37f313a (tests-first esbuild rewrite), 9845792 (impl), f456114 (orchestrator-authorized shipped-bin reconciliation). Added esbuild devDep + scripts/build-plugin.mjs (`npm run build:plugin`) bundling bin/init.js + bin/new-task.js → dist/init.cjs (348kb) + dist/new-task.cjs (306kb), reproducible byte-identical. Solved import.meta.url by INLINING the JSON schemas: src/task-store.js + src/project-md.js switched from readFileSync(fileURLToPath(import.meta.url)) to `import … with { type: 'json' }` (verified resolving under Vite/vitest, raw Node ESM, and esbuild; project-md normalizes the imported object to preserve the graceful-degrade .properties contract). Added a bundling-aware run-as-main guard to both bin shells (import.meta.url check when truthy, else require.main===module) so the cjs bundle actually runs. .gitignore un-ignores dist/; both bundles git-tracked. shipped-bin.json → [dist/init.cjs, dist/new-task.cjs]. NO SessionStart hook; deps stay devDependencies. 263 passed / 1 skipped, deterministic."
+    },
+    {
+      "author": "reviewer",
+      "at": "2026-05-29T03:00:00Z",
+      "body": "Verdict (fresh context): APPROVE. 0 HIGH / 0 MEDIUM / 0 LOW / 1 NIT. 263 passed + 1 skipped, twice, deterministic; pre-existing 237+1 green (zero regressions). Tests-first confirmed: git show 9845792 -- tests/ empty; the sole authorized test edit (f456114) touches only plugin-scaffold.spec.js AC4 + shipped-bin.json, documented. INDEPENDENTLY rebuilt via build:plugin → byte-identical to committed bundles; copied committed dist/*.cjs to a tmp dir with no node_modules up-tree + unset NODE_PATH → both run to arg-parse with ZERO MODULE_NOT_FOUND; bundle scan confirms fileURLToPath count 0, bare require('ajv'|…) count 0, schema literals inlined. High-risk src/ refactor (task-store.js + project-md.js JSON-import swap) verified behavior-preserving — task-store-hardening AC5 + project-md-hardening AC2 specs green; graceful-degrade .properties contract preserved/hardened. bin run-as-main guard correct (no auto-run on import/require; resolveRepoRoot binding untouched). Authorized TASK-021 AC4 edit judged legitimate staleness fix, intent preserved, make-template exclusion now stricter + still-physically-present guard green. All 6 ACs COVERED. NIT: build-plugin.mjs esbuild opts duplicated in the in-test helper (non-drift today — byte-identical rebuild confirms). Nothing blocks close."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-29T03:05:00Z",
+      "body": "Closed on reviewer APPROVE under standing auto-close authorization. Linked commits 37f313a (test) + 9845792 (impl) + f456114 (authorized reconciliation). Context: the chain-blocking CRLF/shebang infra bug fixed mid-ticket via .gitattributes (dc9b5d1). The hard ticket of the chain — two approach pivots (data-dir/NODE_PATH → esbuild), an infra bug, and a cross-ticket AC4 conflict — all resolved. NIT (esbuild-opts duplication between build script and test helper) deferred without follow-up; byte-identical rebuild covers it today. Proceeding to TASK-024 (P4 /init-project command)."
     }
   ],
   "created_at": "2026-05-28T22:40:00Z",
-  "updated_at": "2026-05-29T01:45:00Z",
+  "updated_at": "2026-05-29T03:05:00Z",
   "jira_key": null
 }

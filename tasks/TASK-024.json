@@ -8,10 +8,10 @@
     "Re-run is idempotent: an already-initialized project is not clobbered (honors the existing PROJECT.md guard and the seed-label backlog guard).",
     "End-to-end: install the plugin into a FRESH empty temp project, run init-project, and assert every artifact lands in the temp project dir — and that the plugin cache dir is NOT mutated."
   ],
-  "status": "todo",
+  "status": "in_progress",
   "priority": "high",
   "labels": ["plugin", "distribution", "plugin-chain", "intake"],
-  "assignee": null,
+  "assignee": "developer",
   "depends_on": ["TASK-022", "TASK-023"],
   "linked_commits": [],
   "linked_prs": [],
