@@ -8,21 +8,26 @@
     "A test round-trips through the tools against a temp-project task store: create_task → list_todos shows it → transition_status to done → get_task reflects the new status.",
     "The server's docstring/README states the explicit WILL/WON'T for a non-Claude-Code client (gets ticket CRUD; does NOT get the orchestrator/subagent loop or RESUME-FIRST orchestration)."
   ],
-  "status": "todo",
+  "status": "done",
   "priority": "medium",
   "labels": ["plugin", "distribution", "plugin-chain", "mcp"],
-  "assignee": null,
+  "assignee": "developer",
   "depends_on": ["TASK-023"],
-  "linked_commits": [],
+  "linked_commits": ["bb1a663", "2447977"],
   "linked_prs": [],
   "comments": [
     {
       "author": "orchestrator",
       "at": "2026-05-28T22:40:00Z",
       "body": "Minted from TASK-020 spike §F (P6) + §E. Medium priority — branches off P3 and is deferrable per the 'devs now, broaden later' direction. Rejoins the chain at P7's E2E. Tool surface intentionally mirrors Jira field names for loss-free TASK-003 migration later."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-29T07:00:00Z",
+      "body": "CLOSED APPROVE (auto-close per standing plugin-chain authorization — cleanest review of the whole chain: 0 HIGH / 0 MEDIUM / 0 LOW / 1 NIT). Researcher first produced the reusable mcp-server skill (.claude/skills/mcp-server/ + plugin-root mirror) + the new KB entry proposal; tests-first bb1a663; impl 2447977. Reviewer (fresh context): full suite 339 passed / 4 skipped DETERMINISTIC across two clean runs, `claude plugin validate .` PASS, dist/mcp-server.cjs == fresh build. ALL 4 ACs MET. Delivered: src/mcp-server.js exposes a createServer({repoRoot}) factory + main() registering the six tools (list_todos/list_ready/get_task/create_task/transition_status/append_comment) via McpServer.registerTool with raw-zod-shape inputSchemas, each binding repoRoot (factory arg, or process.env.CLAUDE_PROJECT_DIR ?? process.cwd() in main); five wrap src/task-store.js, get_task implemented inline (no store export). Results are {content:[{type:'text',text:JSON.stringify(...)}]}; errors throw → SDK isError. Repo-root .mcp.json (stdio: node ${CLAUDE_PLUGIN_ROOT}/dist/mcp-server.cjs, env CLAUDE_PROJECT_DIR); plugin.json re-declares mcpServers './.mcp.json' (the key P7 removed — file now exists so the publish-config guard + flipped plugin-scaffold assertion pass); third esbuild entry → committed dist/mcp-server.cjs; shipped-bin.json updated. @modelcontextprotocol/sdk@^1.29.0 + zod@^3.25.0 as devDeps (esbuild-inlined, no runtime deps). AC3 round-trips through a REAL SDK Client over InMemoryTransport.createLinkedPair() (create→list→transition→get + done-task drops from list_todos). SECURITY (reviewer-scrutinized, SOUND): get_task's /^TASK-\\d{3,}$/ guard runs BEFORE any path join/read — rejects ../../etc/passwd, TASK-1/../../x, newline-injection; well-formed-absent key → null via ENOENT; other tools never build paths from raw input. JSON-RPC SAFETY (sound): zero stdout writes, only console.error to stderr. WILL/WON'T docstring present (AC4). NIT (a redundant McpServer re-import in the test) deferred. NET NEW TESTS this ticket. PLUGIN CHAIN (epic TASK-020) NOW 100% COMPLETE — all 7 tickets (P1-P7) closed & reviewer-APPROVED. Remaining operational follow-up (NOT code, NOT blocking): the live `claude plugin install` → `claude plugin details` MCP-servers(1) sensor + the TASK-027 AC1 live agent-loop E2E — both inherently manual, run at install time."
     }
   ],
   "created_at": "2026-05-28T22:40:00Z",
-  "updated_at": "2026-05-28T22:40:00Z",
+  "updated_at": "2026-05-29T07:00:00Z",
   "jira_key": null
 }
