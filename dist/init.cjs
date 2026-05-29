@@ -9333,17 +9333,27 @@ function resolveRepoRoot(env, cwd) {
 
 // bin/init.js
 var import_meta = {};
-var KNOWN_FLAGS = /* @__PURE__ */ new Set(["--force", "--help", "--no-archive"]);
+var KNOWN_FLAGS = /* @__PURE__ */ new Set(["--force", "--help", "--no-archive", "--answers-file"]);
+var VALUE_FLAGS = /* @__PURE__ */ new Set(["--answers-file"]);
 var TASK_FILE_RE2 = /^TASK-\d{3,}\.json$/;
 function parseArgs(argv) {
-  const out = { force: false, help: false, noArchive: false };
-  for (const tok of argv) {
+  const out = { force: false, help: false, noArchive: false, answersFile: null };
+  for (let i = 0; i < argv.length; i++) {
+    const tok = argv[i];
     if (!KNOWN_FLAGS.has(tok)) {
       throw new Error(`unknown argument: ${tok}`);
     }
     if (tok === "--force") out.force = true;
     if (tok === "--help") out.help = true;
     if (tok === "--no-archive") out.noArchive = true;
+    if (tok === "--answers-file") {
+      const value = argv[i + 1];
+      if (value === void 0 || VALUE_FLAGS.has(value) || KNOWN_FLAGS.has(value)) {
+        throw new Error("--answers-file requires a file path argument");
+      }
+      out.answersFile = value;
+      i += 1;
+    }
   }
   return out;
 }
@@ -9395,14 +9405,40 @@ function tryReadIntake(path) {
     return null;
   }
 }
-async function runWizardAndWriteProjectMd({ repoRoot, sessionId, prompter, now }) {
-  const persistTo = intakePath(repoRoot, sessionId);
-  const { answers } = await runQuestionnaire({
-    questions: buildIntakeQuestions(),
-    prompter,
-    persistTo,
-    now
+var REQUIRED_ANSWER_KEYS = ["project_name", "project_type"];
+function validateSuppliedAnswers(answers) {
+  if (!answers || typeof answers !== "object") {
+    throw new Error("init: supplied answers must be a non-empty object");
+  }
+  const missing = REQUIRED_ANSWER_KEYS.filter((k) => {
+    const v = answers[k];
+    return v === void 0 || v === null || v === "";
   });
+  if (missing.length > 0) {
+    throw new Error(
+      `init: supplied answers are missing required key(s): ${missing.join(", ")}`
+    );
+  }
+}
+async function runWizardAndWriteProjectMd({
+  repoRoot,
+  sessionId,
+  prompter,
+  now,
+  suppliedAnswers
+}) {
+  let answers;
+  if (suppliedAnswers) {
+    answers = suppliedAnswers;
+  } else {
+    const persistTo = intakePath(repoRoot, sessionId);
+    ({ answers } = await runQuestionnaire({
+      questions: buildIntakeQuestions(),
+      prompter,
+      persistTo,
+      now
+    }));
+  }
   await writeProjectMd({ repoRoot, answers, now });
   await generateProjectContext({ repoRoot, answers, now });
   try {
@@ -9419,14 +9455,24 @@ async function runInit({
   argv,
   prompter,
   repoRoot,
-  now = () => (/* @__PURE__ */ new Date()).toISOString()
+  now = () => (/* @__PURE__ */ new Date()).toISOString(),
+  answers = null
 }) {
   const parsed = parseArgs(argv);
+  if (answers) {
+    validateSuppliedAnswers(answers);
+  }
   const projectMdPath = (0, import_node_path10.join)(repoRoot, "PROJECT.md");
   const projectMdExists = (0, import_node_fs12.existsSync)(projectMdPath);
   if (parsed.force) {
     const { sessionId: sessionId2 } = await startSession({ repoRoot });
-    await runWizardAndWriteProjectMd({ repoRoot, sessionId: sessionId2, prompter, now });
+    await runWizardAndWriteProjectMd({
+      repoRoot,
+      sessionId: sessionId2,
+      prompter,
+      now,
+      suppliedAnswers: answers
+    });
     return { state: "forced", projectMdPath, sessionId: sessionId2 };
   }
   if (projectMdExists) {
@@ -9444,18 +9490,32 @@ async function runInit({
     const partial = tryReadIntake(candidatePath);
     if (partial) {
       const sessionId2 = pointer.active_session_id;
-      await runWizardAndWriteProjectMd({ repoRoot, sessionId: sessionId2, prompter, now });
+      await runWizardAndWriteProjectMd({
+        repoRoot,
+        sessionId: sessionId2,
+        prompter,
+        now,
+        suppliedAnswers: answers
+      });
       return { state: "resumed", projectMdPath, sessionId: sessionId2 };
     }
   }
-  await maybeArchiveFrameworkHistory({
-    repoRoot,
-    prompter,
-    noArchive: parsed.noArchive,
-    now
-  });
+  if (!answers) {
+    await maybeArchiveFrameworkHistory({
+      repoRoot,
+      prompter,
+      noArchive: parsed.noArchive,
+      now
+    });
+  }
   const { sessionId } = await startSession({ repoRoot });
-  await runWizardAndWriteProjectMd({ repoRoot, sessionId, prompter, now });
+  await runWizardAndWriteProjectMd({
+    repoRoot,
+    sessionId,
+    prompter,
+    now,
+    suppliedAnswers: answers
+  });
   return { state: "created", projectMdPath, sessionId };
 }
 function realReadlinePrompter() {
@@ -9485,12 +9545,37 @@ function printFriendlyError(err) {
   console.error(`Error: ${err.message}`);
   process.exit(1);
 }
+function loadAnswersFile(path) {
+  let raw;
+  try {
+    raw = (0, import_node_fs12.readFileSync)(path, "utf8");
+  } catch (err) {
+    throw new Error(`could not read --answers-file ${path}: ${err.message}`);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`--answers-file ${path} is not valid JSON: ${err.message}`);
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`--answers-file ${path} must contain a JSON object of answers`);
+  }
+  return parsed;
+}
 var __isEntryScript = import_meta.url ? Boolean(process.argv[1]) && import_meta.url === (0, import_node_url.pathToFileURL)(process.argv[1]).href : typeof require !== "undefined" && typeof module !== "undefined" && require.main === module;
 if (__isEntryScript) {
-  runInit({
-    argv: process.argv.slice(2),
-    prompter: realReadlinePrompter(),
-    repoRoot: resolveRepoRoot(process.env, process.cwd())
+  Promise.resolve().then(() => {
+    const argv = process.argv.slice(2);
+    const parsed = parseArgs(argv);
+    const answers = parsed.answersFile ? loadAnswersFile(parsed.answersFile) : null;
+    const prompter = parsed.answersFile ? null : realReadlinePrompter();
+    return runInit({
+      argv,
+      prompter,
+      repoRoot: resolveRepoRoot(process.env, process.cwd()),
+      answers
+    });
   }).then(printFriendlyOutcome).catch(printFriendlyError);
 }
 // Annotate the CommonJS export names for ESM import in node:

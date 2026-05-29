@@ -39,23 +39,39 @@ import { seedBacklog } from '../src/backlog-seeder.js';
 import { archiveFrameworkHistory } from '../src/framework-history.js';
 import { resolveRepoRoot } from '../src/repo-root.js';
 
-const KNOWN_FLAGS = new Set(['--force', '--help', '--no-archive']);
+const KNOWN_FLAGS = new Set(['--force', '--help', '--no-archive', '--answers-file']);
+// Flags that consume the FOLLOWING argv token as their value (so the value
+// token is not treated as an unknown positional by the strict parser).
+const VALUE_FLAGS = new Set(['--answers-file']);
 const TASK_FILE_RE = /^TASK-\d{3,}\.json$/;
 
 /**
  * Parse argv. Every token must be a recognized long flag; positional tokens
  * (anything not in KNOWN_FLAGS) throw with the offending token in the message,
  * matching bin/new-task.js's strictness so typos and stray args surface fast.
+ *
+ * Value-taking flags (VALUE_FLAGS, e.g. --answers-file <path>) consume the next
+ * token as their value; that consumed token is therefore NOT subjected to the
+ * unknown-argument check (TASK-024 item 3).
  */
 function parseArgs(argv) {
-  const out = { force: false, help: false, noArchive: false };
-  for (const tok of argv) {
+  const out = { force: false, help: false, noArchive: false, answersFile: null };
+  for (let i = 0; i < argv.length; i++) {
+    const tok = argv[i];
     if (!KNOWN_FLAGS.has(tok)) {
       throw new Error(`unknown argument: ${tok}`);
     }
     if (tok === '--force') out.force = true;
     if (tok === '--help') out.help = true;
     if (tok === '--no-archive') out.noArchive = true;
+    if (tok === '--answers-file') {
+      const value = argv[i + 1];
+      if (value === undefined || VALUE_FLAGS.has(value) || KNOWN_FLAGS.has(value)) {
+        throw new Error('--answers-file requires a file path argument');
+      }
+      out.answersFile = value;
+      i += 1; // consume the path token
+    }
   }
   return out;
 }
@@ -145,17 +161,59 @@ function tryReadIntake(path) {
 }
 
 /**
- * Run the intake wizard with persistence into the bundle, then materialize
- * PROJECT.md from the collected answers.
+ * Required intake keys for the non-interactive answers path. The wizard always
+ * collects these (they map to PROJECT.md's frontmatter); a hand-supplied answers
+ * object MUST carry them or we refuse to materialize anything (TASK-024 item 2).
+ * writeProjectMd also throws on these, but validating up front guarantees we
+ * never half-materialize (PROJECT.md before backlog, etc.) on bad input.
  */
-async function runWizardAndWriteProjectMd({ repoRoot, sessionId, prompter, now }) {
-  const persistTo = intakePath(repoRoot, sessionId);
-  const { answers } = await runQuestionnaire({
-    questions: buildIntakeQuestions(),
-    prompter,
-    persistTo,
-    now,
+const REQUIRED_ANSWER_KEYS = ['project_name', 'project_type'];
+
+function validateSuppliedAnswers(answers) {
+  if (!answers || typeof answers !== 'object') {
+    throw new Error('init: supplied answers must be a non-empty object');
+  }
+  const missing = REQUIRED_ANSWER_KEYS.filter((k) => {
+    const v = answers[k];
+    return v === undefined || v === null || v === '';
   });
+  if (missing.length > 0) {
+    throw new Error(
+      `init: supplied answers are missing required key(s): ${missing.join(', ')}`,
+    );
+  }
+}
+
+/**
+ * Materialize PROJECT.md (+ project-context + seeded backlog) from a set of
+ * intake answers. Answers come from one of two sources:
+ *   - interactive: runQuestionnaire drives `prompter`, persisting into the
+ *     bundle's intake.json as it goes (the direct `node bin/init.js` path).
+ *   - non-interactive: a pre-supplied `answers` object (the --answers-file /
+ *     programmatic runInit({answers}) path) — the prompter is NEVER called and
+ *     runQuestionnaire is bypassed entirely, because a slash command runs
+ *     through the Bash tool with no interactive TTY (TASK-024 item 1).
+ *
+ * The artifact sequence (writeProjectMd -> generateProjectContext ->
+ * seedBacklog, with the seedBacklog try/catch) is identical for both sources.
+ */
+async function runWizardAndWriteProjectMd({
+  repoRoot, sessionId, prompter, now, suppliedAnswers,
+}) {
+  let answers;
+  if (suppliedAnswers) {
+    // Non-interactive: use the supplied answers verbatim. Validated by the
+    // caller (runInit) before we get here, so this is a straight pass-through.
+    answers = suppliedAnswers;
+  } else {
+    const persistTo = intakePath(repoRoot, sessionId);
+    ({ answers } = await runQuestionnaire({
+      questions: buildIntakeQuestions(),
+      prompter,
+      persistTo,
+      now,
+    }));
+  }
   await writeProjectMd({ repoRoot, answers, now });
   // TASK-013 — emit the per-project agent briefing alongside PROJECT.md.
   // The in-memory `answers` are passed through so the generator doesn't have
@@ -191,6 +249,12 @@ async function runWizardAndWriteProjectMd({ repoRoot, sessionId, prompter, now }
  * @param {(ctx: {prompt: string, type: string, enum?: string[], error?: string}) => Promise<string>} opts.prompter
  * @param {string} opts.repoRoot
  * @param {() => string} [opts.now]
+ * @param {object} [opts.answers] - when truthy, the NON-INTERACTIVE path: the
+ *   interactive runQuestionnaire is skipped entirely and the project is
+ *   materialized straight from this object. `prompter` is never called. This is
+ *   the Bash-tool-compatible mode the /init-project slash command relies on
+ *   (TASK-024). The already_initialized guard still short-circuits even with
+ *   answers supplied, so a re-run is idempotent (it never clobbers PROJECT.md).
  * @returns {Promise<{state: 'already_initialized'|'forced'|'resumed'|'created', projectMdPath: string, sessionId: string|null}>}
  */
 export async function runInit({
@@ -198,8 +262,18 @@ export async function runInit({
   prompter,
   repoRoot,
   now = () => new Date().toISOString(),
+  answers = null,
 }) {
   const parsed = parseArgs(argv);
+
+  // In non-interactive answers mode, validate the supplied object BEFORE any
+  // disk mutation so malformed input errors cleanly instead of writing a
+  // PROJECT.md and then failing partway through the backlog seed (TASK-024
+  // item 2). The already_initialized branch below never materializes, so it is
+  // safe to validate here regardless of which branch we end up taking.
+  if (answers) {
+    validateSuppliedAnswers(answers);
+  }
 
   const projectMdPath = join(repoRoot, 'PROJECT.md');
   const projectMdExists = existsSync(projectMdPath);
@@ -207,11 +281,17 @@ export async function runInit({
   // ---- Branch 2: forced (takes precedence over already_initialized) ----
   if (parsed.force) {
     const { sessionId } = await startSession({ repoRoot });
-    await runWizardAndWriteProjectMd({ repoRoot, sessionId, prompter, now });
+    await runWizardAndWriteProjectMd({
+      repoRoot, sessionId, prompter, now, suppliedAnswers: answers,
+    });
     return { state: 'forced', projectMdPath, sessionId };
   }
 
   // ---- Branch 1: already_initialized ----
+  // This guard short-circuits BEFORE any wizard/answers materialization, so a
+  // second answers-mode run on an already-initialized project returns
+  // already_initialized without re-prompting and without overwriting PROJECT.md
+  // (TASK-024 AC3 idempotency). This branch never touches the prompter.
   if (projectMdExists) {
     const { frontmatter } = await readProjectMd({ repoRoot });
     // One-line summary to stdout. Non-emoji marker — see header.
@@ -232,7 +312,9 @@ export async function runInit({
     const partial = tryReadIntake(candidatePath);
     if (partial) {
       const sessionId = pointer.active_session_id;
-      await runWizardAndWriteProjectMd({ repoRoot, sessionId, prompter, now });
+      await runWizardAndWriteProjectMd({
+        repoRoot, sessionId, prompter, now, suppliedAnswers: answers,
+      });
       return { state: 'resumed', projectMdPath, sessionId };
     }
   }
@@ -242,14 +324,24 @@ export async function runInit({
   // already_initialized both imply the project has past-the-archive state on
   // disk; resumed already has a half-answered wizard and replaying the
   // archive prompt mid-resume would be jarring.
-  await maybeArchiveFrameworkHistory({
-    repoRoot,
-    prompter,
-    noArchive: parsed.noArchive,
-    now,
-  });
+  //
+  // SKIP the archive prompt entirely in non-interactive answers mode: a slash
+  // command / --answers-file caller has no TTY to answer a [Y/n], so prompting
+  // would hang (or, with a throwing prompter, crash) the bootstrap. In a fresh
+  // target dir countFrameworkHistory is 0 and the prompt no-ops anyway, but
+  // guarding here is correct for the general no-TTY case (TASK-024 item 1).
+  if (!answers) {
+    await maybeArchiveFrameworkHistory({
+      repoRoot,
+      prompter,
+      noArchive: parsed.noArchive,
+      now,
+    });
+  }
   const { sessionId } = await startSession({ repoRoot });
-  await runWizardAndWriteProjectMd({ repoRoot, sessionId, prompter, now });
+  await runWizardAndWriteProjectMd({
+    repoRoot, sessionId, prompter, now, suppliedAnswers: answers,
+  });
   return { state: 'created', projectMdPath, sessionId };
 }
 
@@ -297,6 +389,32 @@ function printFriendlyError(err) {
   process.exit(1);
 }
 
+/**
+ * Read + JSON.parse the --answers-file path into the flat {questionId: value}
+ * answers object. A missing/unreadable file or invalid JSON throws an Error
+ * with a friendly, path-naming message so the entry runner's
+ * .catch(printFriendlyError) prints a clean one-liner (exit 1) instead of an
+ * unhandled stacktrace (TASK-024 item 3).
+ */
+function loadAnswersFile(path) {
+  let raw;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch (err) {
+    throw new Error(`could not read --answers-file ${path}: ${err.message}`);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`--answers-file ${path} is not valid JSON: ${err.message}`);
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`--answers-file ${path} must contain a JSON object of answers`);
+  }
+  return parsed;
+}
+
 // Only fire the top-level runner when invoked as the entry script (not on
 // import from tests). Two forms must be supported:
 //   - dev/test ESM (`node bin/init.js`): import.meta.url is the file URL, so
@@ -310,11 +428,25 @@ const __isEntryScript = import.meta.url
   ? Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href
   : (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module);
 if (__isEntryScript) {
-  runInit({
-    argv: process.argv.slice(2),
-    prompter: realReadlinePrompter(),
-    repoRoot: resolveRepoRoot(process.env, process.cwd()),
-  })
+  // Wrap in Promise.resolve().then(...) so a synchronous throw from argv
+  // parsing or answers-file loading routes through printFriendlyError (a clean
+  // exit-1 message) rather than crashing with an unhandled stacktrace.
+  Promise.resolve()
+    .then(() => {
+      const argv = process.argv.slice(2);
+      const parsed = parseArgs(argv);
+      const answers = parsed.answersFile ? loadAnswersFile(parsed.answersFile) : null;
+      // In --answers-file mode no prompter is ever called, so we do NOT open a
+      // readline interface (it would otherwise hold the process open with no
+      // TTY). The interactive path keeps the real readline prompter.
+      const prompter = parsed.answersFile ? null : realReadlinePrompter();
+      return runInit({
+        argv,
+        prompter,
+        repoRoot: resolveRepoRoot(process.env, process.cwd()),
+        answers,
+      });
+    })
     .then(printFriendlyOutcome)
     .catch(printFriendlyError);
 }
