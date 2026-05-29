@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-29T05:00:00Z",
+  "generated_at": "2026-05-29T06:00:00Z",
   "tasks": [
     {
       "key": "TASK-001",
@@ -148,7 +148,7 @@
     {
       "key": "TASK-027",
       "title": "Plugin chain P7: end-to-end install test + non-technical quickstart docs + publish prep",
-      "status": "todo",
+      "status": "done",
       "priority": "high"
     }
   ]

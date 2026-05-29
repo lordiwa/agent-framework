@@ -8,21 +8,31 @@
     "Marketplace hosting + name finalized and reflected in `.claude-plugin/marketplace.json`; the `version` strategy for first release is decided and applied.",
     "Publish-prep confirmed: running `bin/make-template.js --yes` at publish time yields a shipped plugin carrying zero dev tickets/state (verified against the TASK-019 pristine-template guarantees)."
   ],
-  "status": "todo",
+  "status": "done",
   "priority": "high",
   "labels": ["plugin", "distribution", "plugin-chain", "docs", "e2e"],
-  "assignee": null,
+  "assignee": "developer",
   "depends_on": ["TASK-025", "TASK-026"],
-  "linked_commits": [],
+  "linked_commits": ["9236e99", "2b0be23"],
   "linked_prs": [],
   "comments": [
     {
       "author": "orchestrator",
       "at": "2026-05-28T22:40:00Z",
       "body": "Minted from TASK-020 spike §F (P7). The proof-it-all-works capstone. Depends on P5 (orchestrator activation) and P6 (MCP). Carries the deferred publish decisions (marketplace hosting/name §I Q5, versioning §I Q6) so they're resolved with full implementation context rather than guessed up front. Ties back to TASK-019 (make-template) as the publish-time scrub."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-29T05:15:00Z",
+      "body": "PUBLISH DECISIONS RESOLVED by the human (the two §I questions this ticket parked): (Q5 hosting/name) THIS repo is the public marketplace via marketplace.json source './' — keep name 'agentic-framework-marketplace'; users run `claude plugin marketplace add <this-repo-url>`. No separate catalog repo. (Q6 versioning) set an EXPLICIT semver `version: \"0.1.0\"` in .claude-plugin/plugin.json — pre-1.0 signal (still evolving; clean-machine E2E not yet run). AUTHORIZED DEVIATION: doing P7 before P6 (TASK-026 MCP) at the human's direction — the depends_on TASK-026 is satisfiable because AC1's E2E drives a task through the FILE-based task store, not the MCP server, so MCP is not on P7's critical path. P6 remains open as the deferrable broaden-later seam."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-29T06:00:00Z",
+      "body": "CLOSED APPROVE-WITH-FOLLOWUPS (auto-close per standing plugin-chain authorization — green review, 0 HIGH / 0 MEDIUM). Tests-first 9236e99 (4 spec files), impl 2b0be23. Reviewer (fresh context): 0 HIGH / 0 MEDIUM / 1 LOW / 1 NIT, full suite 317 passed / 3 skipped DETERMINISTIC across two clean runs, dist unchanged. AC2/AC3/AC4 FULLY MET; AC1 automatable surface met + live run operationally pending (see below). Delivered: (AC3) plugin.json gained explicit `version: \"0.1.0\"` (single source of version truth; marketplace entry carries none); marketplace.json confirmed as the public marketplace (name agentic-framework-marketplace, plugins[0].source './'). (AC2) README gained a jargon-free 'Install as a Claude Code plugin' quickstart (marketplace add → install → /agentic-framework:init-project → first chat) ADDED alongside the preserved clone workflow (readme.spec.js + make-template AC7 still green). (AC4) publish-scrub.spec.js is a real regression lock proving bin/make-template.js makeTemplate scrubs all dev TASK-*/sidecars/session bundles + resets index + pointer to idle (TASK-019 guarantee). (AC1) e2e-install.spec.js is a documented it.skip manual sensor with the full add→install→details→init-project→drive-one-task→cleanup sequence. CONFIG-CORRECTNESS FIX discovered doing P7-before-P6: removed the dangling `mcpServers: './.mcp.json'` from plugin.json (file doesn't exist until P6) — `claude plugin validate .` → PASS and `validate .claude-plugin/plugin.json` → PASS-with-one-cosmetic-warning, NO dangling-mcpServers error (dev ran it; CLI v2.1.156). AUTHORIZED TEST EDITS (reviewer confirmed legitimate supersession, NOT weakening; net coverage up): (1) new guard in publish-config.spec.js — if mcpServers present its file must exist; (2) two TASK-021 plugin-scaffold.spec.js assertions flipped per the manifest's own anticipatory comments — version-unset→version-pinned, mcpServers-declared→mcpServers-unset-until-P6. No inconsistency left for P6 (TASK-026 AC re-adds both .mcp.json + the key; the guard then enforces sync). LOW (AC1 live agent-loop drive + recorded observations still pending — inherently manual, gated on a human/clean-machine interactive session) + NIT (publish-config semver assertion collapses typeof+regex into one boolean) deferred. Net new tests +18 (298 → 316 passing equivalents; suite now 317 passed / 3 skipped). PLUGIN CHAIN (epic TASK-020) milestone: P1-P5 + P7 DONE; only P6 (TASK-026 MCP, deferrable broaden-later seam) remains open in the chain."
     }
   ],
   "created_at": "2026-05-28T22:40:00Z",
-  "updated_at": "2026-05-28T22:40:00Z",
+  "updated_at": "2026-05-29T06:00:00Z",
   "jira_key": null
 }
