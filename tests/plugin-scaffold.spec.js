@@ -143,15 +143,18 @@ describe('AC3 — agents/ and skills/ live at the plugin root', () => {
 });
 
 // ===========================================================================
-// AC4 — shipped-bin allowlist excludes make-template.js.
+// AC4 — shipped-bin allowlist points at the committed dist bundles.
 // ===========================================================================
-// Concrete representation chosen for "the shipped bin set": a committed JSON
-// allowlist at `.claude-plugin/shipped-bin.json` of shape
-//   { "bin": ["init.js", "new-task.js"] }
-// It is the single source of truth for which bin/ scripts the published plugin
-// exposes on the Bash-tool PATH. make-template.js is a publish-time dev scrub
-// tool and must be excluded; init.js / new-task.js are user-facing and included.
-describe('AC4 — shipped-bin allowlist excludes make-template.js', () => {
+// UPDATED for the TASK-023 esbuild bundling pivot (orchestrator-authorized,
+// like the TASK-002 Ajv precedent). The original TASK-021 AC4 pinned the
+// allowlist to raw bin/ sources (`{ "bin": ["init.js", "new-task.js"] }`). After
+// P3, the SHIPPED entrypoints are the self-contained esbuild bundles under
+// dist/ — a git-URL plugin install ships no node_modules, so bin/*.js + src/*
+// (which import ajv/gray-matter) are dev/test sources only, and the runnable
+// shipped CLIs are dist/init.cjs / dist/new-task.cjs. AC4's INTENT is preserved:
+// ship init + new-task, exclude make-template, and every listed entry is a real
+// file. Only the representation changed (paths now include dist/, *.cjs).
+describe('AC4 — shipped-bin allowlist points at the committed dist bundles', () => {
   it('shipped_bin_manifest_exists_and_lists_a_bin_array', () => {
     const m = readJson(SHIPPED_BIN_MANIFEST);
     expect(Array.isArray(m.bin), 'shipped-bin.json must have a `bin` string array').toBe(true);
@@ -160,25 +163,28 @@ describe('AC4 — shipped-bin allowlist excludes make-template.js', () => {
     }
   });
 
-  it('shipped_bin_includes_init_and_new_task', () => {
+  it('shipped_bin_includes_init_and_new_task_bundles', () => {
     const m = readJson(SHIPPED_BIN_MANIFEST);
-    expect(m.bin).toContain('init.js');
-    expect(m.bin).toContain('new-task.js');
+    expect(m.bin).toContain('dist/init.cjs');
+    expect(m.bin).toContain('dist/new-task.cjs');
   });
 
   it('shipped_bin_excludes_make_template', () => {
     const m = readJson(SHIPPED_BIN_MANIFEST);
-    expect(m.bin).not.toContain('make-template.js');
+    // No shipped entry references the make-template scrub tool, in any form.
+    for (const name of m.bin) {
+      expect(/make-template/.test(name)).toBe(false);
+    }
   });
 
-  it('every_shipped_bin_entry_actually_exists_in_bin_dir', () => {
+  it('every_shipped_bin_entry_actually_exists_at_repo_root_relative_path', () => {
     // The allowlist must not reference phantom files — each entry resolves to a
-    // real script under bin/.
+    // real file relative to the repo root (the path now includes dist/).
     const m = readJson(SHIPPED_BIN_MANIFEST);
     for (const name of m.bin) {
       expect(
-        existsSync(join(BIN_DIR, name)),
-        `shipped bin entry ${name} must exist in bin/`,
+        existsSync(join(REPO_ROOT, name)),
+        `shipped bin entry ${name} must exist at ${join(REPO_ROOT, name)}`,
       ).toBe(true);
     }
   });
