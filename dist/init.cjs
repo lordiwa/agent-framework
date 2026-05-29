@@ -7716,8 +7716,8 @@ __export(init_exports, {
   runInit: () => runInit
 });
 module.exports = __toCommonJS(init_exports);
-var import_node_fs12 = require("node:fs");
-var import_node_path10 = require("node:path");
+var import_node_fs13 = require("node:fs");
+var import_node_path11 = require("node:path");
 var import_node_url = require("node:url");
 var import_promises3 = require("node:readline/promises");
 var import_node_process = require("node:process");
@@ -9331,13 +9331,129 @@ function resolveRepoRoot(env, cwd) {
   return cwd;
 }
 
+// src/claude-md.js
+var import_node_fs12 = require("node:fs");
+var import_node_path10 = require("node:path");
+var BEGIN_MARKER = "<!-- BEGIN agentic-framework routing -->";
+var END_MARKER = "<!-- END agentic-framework routing -->";
+function routingBlockContent() {
+  return [
+    "## Orchestrator activation (agentic-framework)",
+    "",
+    "This project is operated by a multi-agent team. The main thread is the",
+    "**Orchestrator**: it plans and delegates to the `researcher`, `developer`, and",
+    "`reviewer` subagents \u2014 it does not write production code itself.",
+    "",
+    "### RESUME-FIRST (do this before anything else in every new chat)",
+    "",
+    "Session state is split across two layers: a tiny **pointer file** at",
+    "`state/session.json` (`schema_version`, `active_session_id`, `updated_at`) and a",
+    "self-contained **bundle directory** at `state/sessions/<active_session_id>/`",
+    "whose own `session.json` holds the substantive state (`workflow_step`,",
+    "`handoff_summary`, `next_action`, `open_questions`, `blockers`, `decisions`,",
+    "`subagent_results`). The very first action of every new chat is:",
+    "",
+    "1. Read `state/session.json` (the pointer). If it is absent or",
+    "   `active_session_id` is null, the orchestrator is idle \u2014 confirm with the",
+    "   human before starting a new session.",
+    "2. If `active_session_id` is non-null, read",
+    "   `state/sessions/<active_session_id>/session.json` for the handoff state.",
+    "3. If that bundle's `active_task` is non-null, read `tasks/<active_task>.json`",
+    "   to load the work item.",
+    "4. Restate `handoff_summary` and `next_action` to the human in one short",
+    "   paragraph and confirm before acting.",
+    "",
+    "See `state/README.md` for the full bundle layout and the pause / resume / end",
+    "lifecycle operations.",
+    "",
+    "### First-chat routing",
+    "",
+    "If `PROJECT.md` does not exist in the repo root, the framework has not been",
+    "initialized for this project \u2014 run the `/init-project` command (the project",
+    "intake wizard) before any other workflow step. If `PROJECT.md` already exists,",
+    "proceed to RESUME-FIRST.",
+    "",
+    "### Workflow loop (every unit of work)",
+    "",
+    "1. Read the next `status: todo` ticket and extract acceptance criteria.",
+    "2. Plan: decompose into research / tests / implementation / review.",
+    "3. Research (if needed): spawn the `researcher` for any unknown stack.",
+    "4. Tests first: the `developer` writes failing tests that encode the criteria",
+    "   before any implementation lands.",
+    "5. Implement: the same `developer` makes the new tests pass without breaking",
+    "   existing ones.",
+    "6. Review: spawn the `reviewer` in a fresh context; block on any HIGH finding.",
+    "7. Update the ticket on a green review, then pause or end the session bundle",
+    "   via the lifecycle operations in `state/README.md`.",
+    "",
+    "### Repository etiquette",
+    "",
+    "- Conventional Commits (`feat:`, `fix:`, `test:`, `refactor:`, `docs:`,",
+    "  `chore:`); one logical change per commit.",
+    "- Never commit secrets; never `--no-verify`; never force-push a shared branch.",
+    "- Human-in-the-loop for destructive or irreversible actions."
+  ].join("\n");
+}
+function mergeRoutingBlock(existing, routing) {
+  const block = `${BEGIN_MARKER}
+${routing}
+${END_MARKER}`;
+  if (existing === null || existing === void 0 || existing === "") {
+    return `${block}
+`;
+  }
+  const begin = existing.indexOf(BEGIN_MARKER);
+  const end = existing.indexOf(END_MARKER);
+  if (begin !== -1 && end !== -1 && end > begin) {
+    const prefix = existing.slice(0, begin);
+    const suffix = existing.slice(end + END_MARKER.length);
+    return `${prefix}${block}${suffix}`;
+  }
+  const sep = existing.endsWith("\n") ? "\n" : "\n\n";
+  return `${existing}${sep}${block}
+`;
+}
+function writeOrchestratorRouting({ repoRoot }) {
+  const path = (0, import_node_path10.join)(repoRoot, "CLAUDE.md");
+  const existing = (0, import_node_fs12.existsSync)(path) ? (0, import_node_fs12.readFileSync)(path, "utf8") : null;
+  const hadBlock = existing !== null && hasRoutingBlock(existing);
+  const merged = mergeRoutingBlock(existing, routingBlockContent());
+  if (existing !== null && merged === existing) {
+    return { path, wrote: false, hadBlock };
+  }
+  (0, import_node_fs12.writeFileSync)(path, merged, "utf8");
+  return { path, wrote: true, hadBlock };
+}
+function hasRoutingBlock(text) {
+  if (typeof text !== "string") return false;
+  const begin = text.indexOf(BEGIN_MARKER);
+  const end = text.indexOf(END_MARKER);
+  return begin !== -1 && end !== -1 && end > begin;
+}
+function readProjectClaudeMd(repoRoot) {
+  const path = (0, import_node_path10.join)(repoRoot, "CLAUDE.md");
+  return (0, import_node_fs12.existsSync)(path) ? (0, import_node_fs12.readFileSync)(path, "utf8") : null;
+}
+
 // bin/init.js
 var import_meta = {};
-var KNOWN_FLAGS = /* @__PURE__ */ new Set(["--force", "--help", "--no-archive", "--answers-file"]);
+var KNOWN_FLAGS = /* @__PURE__ */ new Set([
+  "--force",
+  "--help",
+  "--no-archive",
+  "--answers-file",
+  "--claude-md-consent"
+]);
 var VALUE_FLAGS = /* @__PURE__ */ new Set(["--answers-file"]);
 var TASK_FILE_RE2 = /^TASK-\d{3,}\.json$/;
 function parseArgs(argv) {
-  const out = { force: false, help: false, noArchive: false, answersFile: null };
+  const out = {
+    force: false,
+    help: false,
+    noArchive: false,
+    answersFile: null,
+    claudeMdConsent: false
+  };
   for (let i = 0; i < argv.length; i++) {
     const tok = argv[i];
     if (!KNOWN_FLAGS.has(tok)) {
@@ -9346,6 +9462,7 @@ function parseArgs(argv) {
     if (tok === "--force") out.force = true;
     if (tok === "--help") out.help = true;
     if (tok === "--no-archive") out.noArchive = true;
+    if (tok === "--claude-md-consent") out.claudeMdConsent = true;
     if (tok === "--answers-file") {
       const value = argv[i + 1];
       if (value === void 0 || VALUE_FLAGS.has(value) || KNOWN_FLAGS.has(value)) {
@@ -9358,14 +9475,14 @@ function parseArgs(argv) {
   return out;
 }
 function countFrameworkHistory(repoRoot) {
-  const tasksDir2 = (0, import_node_path10.join)(repoRoot, "tasks");
-  if (!(0, import_node_fs12.existsSync)(tasksDir2)) return 0;
-  const taskFiles = (0, import_node_fs12.readdirSync)(tasksDir2).filter((n) => TASK_FILE_RE2.test(n));
+  const tasksDir2 = (0, import_node_path11.join)(repoRoot, "tasks");
+  if (!(0, import_node_fs13.existsSync)(tasksDir2)) return 0;
+  const taskFiles = (0, import_node_fs13.readdirSync)(tasksDir2).filter((n) => TASK_FILE_RE2.test(n));
   if (taskFiles.length === 0) return 0;
   for (const name of taskFiles) {
     let t;
     try {
-      t = JSON.parse((0, import_node_fs12.readFileSync)((0, import_node_path10.join)(tasksDir2, name), "utf8"));
+      t = JSON.parse((0, import_node_fs13.readFileSync)((0, import_node_path11.join)(tasksDir2, name), "utf8"));
     } catch (err) {
       throw new Error(
         `bin/init.js: failed to parse task file ${name}: ${err.message}`
@@ -9391,12 +9508,12 @@ async function maybeArchiveFrameworkHistory({ repoRoot, prompter, noArchive, now
   await archiveFrameworkHistory({ repoRoot, now });
 }
 function intakePath(repoRoot, sessionId) {
-  return (0, import_node_path10.join)(repoRoot, "state", "sessions", sessionId, "intake.json");
+  return (0, import_node_path11.join)(repoRoot, "state", "sessions", sessionId, "intake.json");
 }
 function tryReadIntake(path) {
-  if (!(0, import_node_fs12.existsSync)(path)) return null;
+  if (!(0, import_node_fs13.existsSync)(path)) return null;
   try {
-    const raw = JSON.parse((0, import_node_fs12.readFileSync)(path, "utf8"));
+    const raw = JSON.parse((0, import_node_fs13.readFileSync)(path, "utf8"));
     if (raw && typeof raw === "object" && raw.answers && typeof raw.answers === "object") {
       return raw;
     }
@@ -9449,7 +9566,32 @@ async function runWizardAndWriteProjectMd({
     );
     throw err;
   }
-  return { projectMdPath: (0, import_node_path10.join)(repoRoot, "PROJECT.md") };
+  return { projectMdPath: (0, import_node_path11.join)(repoRoot, "PROJECT.md") };
+}
+async function maybeWriteOrchestratorRouting({ repoRoot, prompter, explicitConsent }) {
+  if (explicitConsent) {
+    writeOrchestratorRouting({ repoRoot });
+    return;
+  }
+  const existing = readProjectClaudeMd(repoRoot);
+  if (existing !== null && hasRoutingBlock(existing)) {
+    writeOrchestratorRouting({ repoRoot });
+    return;
+  }
+  if (typeof prompter !== "function") return;
+  let answer;
+  try {
+    answer = await prompter({
+      prompt: "Add the agentic-framework orchestrator routing block to this project's CLAUDE.md? It activates the RESUME-FIRST session contract. [y/N]",
+      type: "string"
+    });
+  } catch {
+    return;
+  }
+  const trimmed = typeof answer === "string" ? answer.trim() : "";
+  if (/^y/i.test(trimmed)) {
+    writeOrchestratorRouting({ repoRoot });
+  }
 }
 async function runInit({
   argv,
@@ -9462,8 +9604,9 @@ async function runInit({
   if (answers) {
     validateSuppliedAnswers(answers);
   }
-  const projectMdPath = (0, import_node_path10.join)(repoRoot, "PROJECT.md");
-  const projectMdExists = (0, import_node_fs12.existsSync)(projectMdPath);
+  const projectMdPath = (0, import_node_path11.join)(repoRoot, "PROJECT.md");
+  const projectMdExists = (0, import_node_fs13.existsSync)(projectMdPath);
+  const explicitConsent = parsed.claudeMdConsent || Boolean(answers && answers.claude_md_consent === true);
   if (parsed.force) {
     const { sessionId: sessionId2 } = await startSession({ repoRoot });
     await runWizardAndWriteProjectMd({
@@ -9473,6 +9616,7 @@ async function runInit({
       now,
       suppliedAnswers: answers
     });
+    await maybeWriteOrchestratorRouting({ repoRoot, prompter, explicitConsent });
     return { state: "forced", projectMdPath, sessionId: sessionId2 };
   }
   if (projectMdExists) {
@@ -9497,6 +9641,7 @@ async function runInit({
         now,
         suppliedAnswers: answers
       });
+      await maybeWriteOrchestratorRouting({ repoRoot, prompter, explicitConsent });
       return { state: "resumed", projectMdPath, sessionId: sessionId2 };
     }
   }
@@ -9516,6 +9661,7 @@ async function runInit({
     now,
     suppliedAnswers: answers
   });
+  await maybeWriteOrchestratorRouting({ repoRoot, prompter, explicitConsent });
   return { state: "created", projectMdPath, sessionId };
 }
 function realReadlinePrompter() {
@@ -9548,7 +9694,7 @@ function printFriendlyError(err) {
 function loadAnswersFile(path) {
   let raw;
   try {
-    raw = (0, import_node_fs12.readFileSync)(path, "utf8");
+    raw = (0, import_node_fs13.readFileSync)(path, "utf8");
   } catch (err) {
     throw new Error(`could not read --answers-file ${path}: ${err.message}`);
   }

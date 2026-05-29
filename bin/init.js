@@ -38,8 +38,19 @@ import { generateProjectContext } from '../src/agent-generator.js';
 import { seedBacklog } from '../src/backlog-seeder.js';
 import { archiveFrameworkHistory } from '../src/framework-history.js';
 import { resolveRepoRoot } from '../src/repo-root.js';
+import {
+  writeOrchestratorRouting,
+  hasRoutingBlock,
+  readProjectClaudeMd,
+} from '../src/claude-md.js';
 
-const KNOWN_FLAGS = new Set(['--force', '--help', '--no-archive', '--answers-file']);
+const KNOWN_FLAGS = new Set([
+  '--force',
+  '--help',
+  '--no-archive',
+  '--answers-file',
+  '--claude-md-consent',
+]);
 // Flags that consume the FOLLOWING argv token as their value (so the value
 // token is not treated as an unknown positional by the strict parser).
 const VALUE_FLAGS = new Set(['--answers-file']);
@@ -55,7 +66,13 @@ const TASK_FILE_RE = /^TASK-\d{3,}\.json$/;
  * unknown-argument check (TASK-024 item 3).
  */
 function parseArgs(argv) {
-  const out = { force: false, help: false, noArchive: false, answersFile: null };
+  const out = {
+    force: false,
+    help: false,
+    noArchive: false,
+    answersFile: null,
+    claudeMdConsent: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     const tok = argv[i];
     if (!KNOWN_FLAGS.has(tok)) {
@@ -64,6 +81,7 @@ function parseArgs(argv) {
     if (tok === '--force') out.force = true;
     if (tok === '--help') out.help = true;
     if (tok === '--no-archive') out.noArchive = true;
+    if (tok === '--claude-md-consent') out.claudeMdConsent = true;
     if (tok === '--answers-file') {
       const value = argv[i + 1];
       if (value === undefined || VALUE_FLAGS.has(value) || KNOWN_FLAGS.has(value)) {
@@ -242,6 +260,65 @@ async function runWizardAndWriteProjectMd({
 }
 
 /**
+ * Decide whether to write the orchestrator routing block into the project's
+ * CLAUDE.md, then write it on consent. This is a channel SEPARATE from the
+ * wizard intake answers — supplying `answers` does NOT imply consent.
+ *
+ * Consent rules (no-TTY-aware, PROMPT-ONCE):
+ *   1. EXPLICIT SIGNAL (the `--claude-md-consent` flag OR `claude_md_consent:true`
+ *      in the answers object) → write WITHOUT prompting. This is the answers-mode
+ *      / slash-command path, which has no interactive TTY.
+ *   2. EXISTING BLOCK → a CLAUDE.md that already carries our marker block is
+ *      refreshed (replaced) WITHOUT re-prompting — PROMPT-ONCE means the prompt
+ *      only ever fires for the FIRST write.
+ *   3. OTHERWISE → prompt ONCE through the prompter. A 'y'-prefixed answer writes
+ *      the block; anything else (including a prompter that throws because there
+ *      is no TTY, e.g. the answers-mode throw-if-called prompter) leaves the file
+ *      untouched. Swallowing the throw is what makes answers-mode-without-signal
+ *      a clean no-op rather than a crash.
+ *
+ * @param {object} opts
+ * @param {string} opts.repoRoot
+ * @param {(ctx: object) => Promise<string>|null} opts.prompter
+ * @param {boolean} opts.explicitConsent - flag or answers-key consent signal.
+ */
+async function maybeWriteOrchestratorRouting({ repoRoot, prompter, explicitConsent }) {
+  // 1. Explicit signal → write, never prompt.
+  if (explicitConsent) {
+    writeOrchestratorRouting({ repoRoot });
+    return;
+  }
+
+  const existing = readProjectClaudeMd(repoRoot);
+
+  // 2. Existing marker block → refresh idempotently, never re-prompt.
+  if (existing !== null && hasRoutingBlock(existing)) {
+    writeOrchestratorRouting({ repoRoot });
+    return;
+  }
+
+  // 3. First write, no signal → prompt once. A throwing/absent prompter (no TTY)
+  //    is treated as a decline.
+  if (typeof prompter !== 'function') return;
+  let answer;
+  try {
+    answer = await prompter({
+      prompt:
+        'Add the agentic-framework orchestrator routing block to this project\'s ' +
+        'CLAUDE.md? It activates the RESUME-FIRST session contract. [y/N]',
+      type: 'string',
+    });
+  } catch {
+    // No TTY / prompter refused → decline, leave CLAUDE.md untouched.
+    return;
+  }
+  const trimmed = typeof answer === 'string' ? answer.trim() : '';
+  if (/^y/i.test(trimmed)) {
+    writeOrchestratorRouting({ repoRoot });
+  }
+}
+
+/**
  * Main entrypoint. See file header for branch semantics.
  *
  * @param {object} opts
@@ -278,12 +355,20 @@ export async function runInit({
   const projectMdPath = join(repoRoot, 'PROJECT.md');
   const projectMdExists = existsSync(projectMdPath);
 
+  // The CLAUDE.md routing consent is a SEPARATE channel from the intake answers:
+  // an explicit signal is either the --claude-md-consent flag or a truthy
+  // claude_md_consent key in the supplied answers object.
+  const explicitConsent =
+    parsed.claudeMdConsent ||
+    Boolean(answers && answers.claude_md_consent === true);
+
   // ---- Branch 2: forced (takes precedence over already_initialized) ----
   if (parsed.force) {
     const { sessionId } = await startSession({ repoRoot });
     await runWizardAndWriteProjectMd({
       repoRoot, sessionId, prompter, now, suppliedAnswers: answers,
     });
+    await maybeWriteOrchestratorRouting({ repoRoot, prompter, explicitConsent });
     return { state: 'forced', projectMdPath, sessionId };
   }
 
@@ -315,6 +400,7 @@ export async function runInit({
       await runWizardAndWriteProjectMd({
         repoRoot, sessionId, prompter, now, suppliedAnswers: answers,
       });
+      await maybeWriteOrchestratorRouting({ repoRoot, prompter, explicitConsent });
       return { state: 'resumed', projectMdPath, sessionId };
     }
   }
@@ -342,6 +428,7 @@ export async function runInit({
   await runWizardAndWriteProjectMd({
     repoRoot, sessionId, prompter, now, suppliedAnswers: answers,
   });
+  await maybeWriteOrchestratorRouting({ repoRoot, prompter, explicitConsent });
   return { state: 'created', projectMdPath, sessionId };
 }
 

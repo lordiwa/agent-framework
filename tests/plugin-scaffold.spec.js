@@ -41,6 +41,12 @@ const BIN_DIR = join(REPO_ROOT, 'bin');
 
 const AGENT_FILES = ['developer.md', 'orchestrator.md', 'researcher.md', 'reviewer.md'];
 const REPO_LOCAL_SKILL = 'tech-training-template';
+// TASK-025 — the always-on orchestrator-routing backstop skill is a SECOND
+// legitimately shipped repo-local skill. The plugin's skill inventory genuinely
+// grew, so the "no global sweep" assertion below now pins BOTH repo-local skills
+// (still excluding any global gsd-*/vue/etc.).
+const BACKSTOP_SKILL = 'orchestrator-routing';
+const REPO_LOCAL_SKILLS = [BACKSTOP_SKILL, REPO_LOCAL_SKILL].sort();
 
 /** Read + JSON.parse a manifest, surfacing a clear failure when it's absent. */
 function readJson(path) {
@@ -132,13 +138,15 @@ describe('AC3 — agents/ and skills/ live at the plugin root', () => {
   });
 
   it('plugin_skills_dir_does_NOT_sweep_in_global_skills', () => {
-    // Repo-local scope is exactly ONE skill. Global gsd-*/vue/etc. must NOT be
-    // dragged into the plugin (locked decision: verify repo-local vs user-global).
+    // Repo-local scope is exactly the two repo-local skills (tech-training-template
+    // + the TASK-025 orchestrator-routing backstop). Global gsd-*/vue/etc. must
+    // NOT be dragged into the plugin (locked decision: verify repo-local vs
+    // user-global).
     expect(existsSync(PLUGIN_SKILLS_DIR), 'plugin-root skills/ must exist').toBe(true);
     const skillEntries = readdirSync(PLUGIN_SKILLS_DIR)
       .filter((n) => statSync(join(PLUGIN_SKILLS_DIR, n)).isDirectory())
       .sort();
-    expect(skillEntries).toEqual([REPO_LOCAL_SKILL]);
+    expect(skillEntries).toEqual(REPO_LOCAL_SKILLS);
   });
 });
 

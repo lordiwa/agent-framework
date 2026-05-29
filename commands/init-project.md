@@ -37,6 +37,19 @@ Type-specific keys (include the set matching the chosen `project_type`):
 - `library`: `library_language`, `audience`, `package_manager`.
 - `other`: no extra keys required.
 
+## Step 1b — Ask for CLAUDE.md routing consent (separate channel)
+
+Separately from the intake answers, ask the user whether to add the
+agentic-framework **orchestrator routing block** to their project's `CLAUDE.md`.
+This block activates the RESUME-FIRST session contract so a fresh orchestrator
+chat picks up where the previous one left off. It is MERGED into a fenced marker
+block — the user's existing `CLAUDE.md` content is preserved byte-for-byte, and a
+re-run only refreshes the block.
+
+If the user agrees, pass `--claude-md-consent` on the init command in Step 3
+(consent is its own flag; it is NOT inferred from the answers). If the user
+declines, omit the flag and no block is written.
+
 ## Step 2 — Write the answers to a temp JSON file
 
 Write the flat object to a temporary file, for example:
@@ -65,6 +78,12 @@ passing the answers file with `--answers-file`:
 
 ```bash
 node ${CLAUDE_PLUGIN_ROOT}/dist/init.cjs --answers-file <path-to-the-tmp-json>
+```
+
+Append `--claude-md-consent` to that command when the user agreed in Step 1b:
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/dist/init.cjs --answers-file <path-to-the-tmp-json> --claude-md-consent
 ```
 
 - `${CLAUDE_PLUGIN_ROOT}` resolves to the plugin's own installed code, so
