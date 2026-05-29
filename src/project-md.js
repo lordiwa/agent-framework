@@ -38,30 +38,28 @@
 // closed so future contributors can't sneak in unstructured config.
 
 import { readFile } from 'node:fs/promises';
-import { existsSync, readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { atomicWriteFile } from './atomic-write.js';
+
+// TASK-023 — the frontmatter schema is INLINED via a JSON import rather than
+// read at runtime from an `import.meta.url`-relative path, so esbuild can bundle
+// it into the self-contained dist/*.cjs plugin entrypoints (under cjs bundling
+// `import.meta.url` is empty and the old fileURLToPath read crashed at module
+// init). The import resolves identically under Vite (vitest), raw Node ESM, and
+// esbuild. state/PROJECT.schema.json remains the on-disk source of truth.
+import __projectSchema from '../state/PROJECT.schema.json' with { type: 'json' };
 
 const PROJECT_MD = 'PROJECT.md';
 const SCHEMA_VERSION = 1;
 
-// Load the frontmatter schema once at module load. It's a static asset shipped
-// with the repo and is consulted by coerceFrontmatterScalar to gate numeric
-// coercion on the schema-declared type (TASK-016 AC2). Reading it eagerly with
-// readFileSync keeps coerceFrontmatterScalar synchronous; if the file is
-// missing or malformed we fall back to an empty schema so coercion simply
-// no-ops on every field rather than breaking the reader outright.
-const __thisFileDir = dirname(fileURLToPath(import.meta.url));
-const __schemaPath = join(__thisFileDir, '..', 'state', 'PROJECT.schema.json');
-let FRONTMATTER_SCHEMA = { properties: {} };
-try {
-  FRONTMATTER_SCHEMA = JSON.parse(readFileSync(__schemaPath, 'utf8'));
-  if (!FRONTMATTER_SCHEMA.properties) FRONTMATTER_SCHEMA.properties = {};
-} catch {
-  FRONTMATTER_SCHEMA = { properties: {} };
-}
+// The frontmatter schema is consulted by coerceFrontmatterScalar to gate numeric
+// coercion on the schema-declared type (TASK-016 AC2). Normalize to guarantee a
+// `properties` object so coercion no-ops gracefully if the schema ever lacks it.
+const FRONTMATTER_SCHEMA = (__projectSchema && __projectSchema.properties)
+  ? __projectSchema
+  : { ...(__projectSchema || {}), properties: {} };
 
 // Single source of truth for body-section <-> answer-id mapping. Used by both
 // writer and reader so the round-trip cannot drift. Keys are ordered: that

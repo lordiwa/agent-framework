@@ -31,7 +31,10 @@ __pycache__/
 *.pyc
 .venv/
 venv/
-dist/
+# NOTE (TASK-023): dist/ is NOT ignored — it holds the COMMITTED esbuild plugin
+# bundles (dist/*.cjs) that are the plugin's shipped entrypoints. A git-URL
+# plugin install ships no node_modules, so the self-contained bundles must
+# travel in the repo. Regenerate them with `npm run build:plugin`.
 build/
 
 # Local-only Claude Code settings overrides (per-machine)

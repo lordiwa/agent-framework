@@ -26,11 +26,19 @@ import {
   readFile, readdir, unlink,
 } from 'node:fs/promises';
 import { mkdirSync, readFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
 import Ajv from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
+
+// TASK-023 — the task schema is INLINED via a JSON import rather than read at
+// runtime from an `import.meta.url`-relative path. esbuild inlines this import
+// into the self-contained dist/*.cjs plugin entrypoints, so the bundle carries
+// the schema and needs no fs read (under cjs bundling `import.meta.url` is empty
+// and the old fileURLToPath read crashed at module init). The `with { type:
+// 'json' }` import attribute resolves identically under Vite (vitest), raw Node
+// ESM, and esbuild. tasks/schema.json remains the on-disk source of truth.
+import __schema from '../tasks/schema.json' with { type: 'json' };
 
 import { atomicWriteFiles } from './atomic-write.js';
 
@@ -46,11 +54,8 @@ export const TASK_FILENAME_RE = /^TASK-(\d{3,})\.json$/;
 // stay forgiving of future changes to the suffix recipe.
 const TMP_FILE_RE = /\.tmp\.[0-9a-f]+(?:-[0-9a-f]+)?$/i;
 
-// ----- ajv compile-once-per-process. The schema is loaded eagerly from
-// tasks/schema.json at module init and the validator is reused on every write. -----
-const __thisDir = dirname(fileURLToPath(import.meta.url));
-const __schemaPath = join(__thisDir, '..', 'tasks', 'schema.json');
-const __schema = JSON.parse(readFileSync(__schemaPath, 'utf8'));
+// ----- ajv compile-once-per-process. The schema is the inlined JSON import
+// above (tasks/schema.json) and the validator is reused on every write. -----
 const __ajv = new Ajv({ allErrors: true, strict: false });
 addFormats(__ajv);
 const __validateTask = __ajv.compile(__schema);

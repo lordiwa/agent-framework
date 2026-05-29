@@ -298,9 +298,18 @@ function printFriendlyError(err) {
 }
 
 // Only fire the top-level runner when invoked as the entry script (not on
-// import from tests). pathToFileURL normalizes the OS-specific argv[1] path
-// to a file:// URL comparable with import.meta.url.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// import from tests). Two forms must be supported:
+//   - dev/test ESM (`node bin/init.js`): import.meta.url is the file URL, so
+//     compare it to argv[1] normalized via pathToFileURL.
+//   - the shipped esbuild CJS bundle (`node dist/init.cjs`): esbuild empties
+//     import.meta.url under the cjs format, so fall back to the canonical
+//     `require.main === module` main-module check (TASK-023).
+// When imported (vitest), import.meta.url is truthy but != argv[1] ⇒ false; when
+// the bundle is require()'d rather than run, require.main != module ⇒ false.
+const __isEntryScript = import.meta.url
+  ? Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href
+  : (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module);
+if (__isEntryScript) {
   runInit({
     argv: process.argv.slice(2),
     prompter: realReadlinePrompter(),

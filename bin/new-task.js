@@ -190,9 +190,15 @@ function realReadlinePrompter() {
 }
 
 // Only fire the top-level runner when invoked as the entry script (not on
-// import from tests). pathToFileURL normalizes the OS-specific argv[1] path
-// to a file:// URL comparable with import.meta.url.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// import from tests). Two forms must be supported:
+//   - dev/test ESM (`node bin/new-task.js`): compare import.meta.url to argv[1].
+//   - the shipped esbuild CJS bundle (`node dist/new-task.cjs`): esbuild empties
+//     import.meta.url under cjs, so fall back to `require.main === module`
+//     (TASK-023). Imported (vitest) ⇒ false; bundle require()'d ⇒ false.
+const __isEntryScript = import.meta.url
+  ? Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href
+  : (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module);
+if (__isEntryScript) {
   const prompter = realReadlinePrompter();
   runCli({
     argv: process.argv.slice(2),
