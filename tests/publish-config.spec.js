@@ -120,6 +120,37 @@ describe('AC3 — marketplace.json reflects this repo as the public marketplace 
 });
 
 // ===========================================================================
+// AC3 (no dangling MCP reference) — ORCHESTRATOR-AUTHORIZED GUARD (TASK-027 P7,
+// 2026-05-29). plugin.json must never point `mcpServers` at a file that does not
+// exist: a dangling reference can make `claude plugin validate`/`install` fail
+// and would block the AC1 clean-machine E2E. The plugin ships NO MCP server
+// until P6 (TASK-026), so the key is currently ABSENT; this guard does NOT
+// require its absence (P6 will legitimately re-add it together with .mcp.json)
+// — it only fails if a key is present while the referenced file is missing.
+// This is a guard ADDITION (catches a future regression), not a weakening.
+// ===========================================================================
+describe('AC3 — plugin.json carries no dangling mcpServers reference', () => {
+  it('if_mcpServers_is_declared_the_referenced_file_exists', () => {
+    const manifest = readJson(PLUGIN_JSON);
+    if (!Object.prototype.hasOwnProperty.call(manifest, 'mcpServers')) {
+      // No MCP server shipped yet (P6 re-adds it). Nothing to dangle.
+      expect(manifest.mcpServers).toBeUndefined();
+      return;
+    }
+    // A string value is a path relative to the plugin (repo) root. (When P6
+    // ships an inline-object form instead, this string branch is skipped and the
+    // guard simply passes — inline servers reference no external file.)
+    if (typeof manifest.mcpServers === 'string') {
+      const referenced = join(REPO_ROOT, manifest.mcpServers);
+      expect(
+        existsSync(referenced),
+        `plugin.json mcpServers points at ${manifest.mcpServers} but ${referenced} does not exist`,
+      ).toBe(true);
+    }
+  });
+});
+
+// ===========================================================================
 // AC3 (cross-manifest consistency) — plugin.json is the single version source
 // of truth; if the marketplace entry ALSO declares a version it must agree.
 // ===========================================================================

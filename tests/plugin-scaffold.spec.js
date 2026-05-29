@@ -15,8 +15,8 @@
 // must remain green — this file touches no production code.
 //
 // AC map (TASK-021):
-//   AC1 — .claude-plugin/plugin.json: name `agentic-framework`,
-//         mcpServers `./.mcp.json` (version intentionally NOT required during dev).
+//   AC1 — .claude-plugin/plugin.json: name `agentic-framework`. (mcpServers and
+//         version: see the in-body notes — both flipped by TASK-027 P7.)
 //   AC2 — .claude-plugin/marketplace.json: source `./`, valid owner.name,
 //         lists the `agentic-framework` plugin.
 //   AC3 — plugin-root agents/ (exactly the 4) + plugin-root skills/ with the
@@ -70,17 +70,28 @@ describe('AC1 — .claude-plugin/plugin.json declares the plugin', () => {
     expect(manifest.name).toBe('agentic-framework');
   });
 
-  it('plugin_declares_mcpServers_pointing_at_local_mcp_json', () => {
+  it('plugin_mcpServers_is_unset_until_the_mcp_server_ships_in_P6', () => {
+    // SUPERSEDED BY TASK-027 P7 (orchestrator-authorized 2026-05-29): the
+    // original TASK-021 assertion pinned `mcpServers: "./.mcp.json"`, but that
+    // file is only created in P6 (TASK-026). A dangling mcpServers reference can
+    // make `claude plugin validate`/`install` fail, which would block the AC1
+    // E2E. The plugin ships NO MCP server until P6, so the key is REMOVED here;
+    // P6 will re-add both the key and the .mcp.json together. The dangling-
+    // reference guard below (publish-config.spec.js) makes the invariant explicit.
     const manifest = readJson(PLUGIN_MANIFEST);
-    expect(manifest.mcpServers).toBe('./.mcp.json');
+    expect(manifest.mcpServers).toBeUndefined();
   });
 
-  it('plugin_version_is_left_unset_during_dev', () => {
-    // Locked decision: commit-SHA versioning during the impl chain — the
-    // manifest must NOT pin a version yet. (Asserting absence, not a value,
-    // keeps this honest if the impl later sets it at publish time — flip then.)
+  it('plugin_version_is_pinned_for_publish', () => {
+    // SUPERSEDED BY TASK-027 P7 AC3 (Q6 resolved by the human 2026-05-29): dev
+    // used commit-SHA versioning, so this assertion originally required the
+    // version to be UNSET — the comment explicitly said "flip then" at publish
+    // time. First release pins an explicit semver in plugin.json (the single
+    // version source of truth). The fine-grained semver/value contract lives in
+    // tests/publish-config.spec.js; here we only pin that a version now EXISTS.
     const manifest = readJson(PLUGIN_MANIFEST);
-    expect(manifest.version).toBeUndefined();
+    expect(typeof manifest.version).toBe('string');
+    expect(manifest.version.length).toBeGreaterThan(0);
   });
 });
 

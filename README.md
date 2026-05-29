@@ -13,10 +13,10 @@ produces, and what to say to Claude Code for your very first chat.
 
 ## What this is
 
-Imagine hiring a small, disciplined engineering team. They follow a strict
-workflow: read the ticket, plan, write failing tests first, implement until
-the tests pass, review each other's work, and only then close the ticket.
-This repository is the harness that makes Claude Code behave that way.
+Imagine hiring a small, disciplined engineering team that reads the ticket,
+plans, writes failing tests first, implements until they pass, reviews each
+other's work, and only then closes the ticket. This repository is the harness
+that makes Claude Code behave that way.
 
 Two ideas drive the whole thing:
 
@@ -31,19 +31,81 @@ You drive all of this from a single Claude Code chat, in plain English.
 
 ---
 
+## Two ways to get started
+
+- **Install as a Claude Code plugin** (recommended, no cloning) — the four steps
+  right below.
+- **Clone the repository** and run the wizard inside the clone — see
+  *"First-time setup"* further down. Use this to work on the framework itself.
+
+Either way you end up with the same thing: a project with a ticket queue, a
+saved chat memory, and an orchestrator you talk to in plain English.
+
+---
+
+## Install as a Claude Code plugin
+
+The quickest way in — you never clone anything. You only need **Claude Code**
+installed (link in *Prerequisites* below).
+
+**Step 1 — Add the marketplace.** A "marketplace" is just where Claude Code
+downloads the team from. Point it at this repository's web address (or its
+folder on your machine):
+
+```bash
+claude plugin marketplace add <this-repo-url>
+```
+
+Expect a confirmation that `agentic-framework-marketplace` was added.
+
+**Step 2 — Install the plugin:**
+
+```bash
+claude plugin install agentic-framework@agentic-framework-marketplace
+```
+
+Expect a confirmation that `agentic-framework` was installed. The orchestrator
+and its helpers are now available in every Claude Code chat.
+
+**Step 3 — Set up your project.** Go to the folder where you want to build
+something (an empty folder is perfect), start Claude Code there, and run this in
+the chat:
+
+```text
+/agentic-framework:init-project
+```
+
+It asks a few questions — your project's name, what kind it is, who it is for,
+the main things it should do, and the stack — then writes everything into *your*
+folder: a `PROJECT.md` summary, a starter backlog under `tasks/`, the saved
+state under `state/`, and a routing note for the orchestrator.
+
+**Step 4 — Start your first chat.** Tell the orchestrator what to do. For your
+very first message, copy and paste this:
+
+> Read `PROJECT.md` and the `tasks/` directory. Tell me which seeded ticket
+> you would like to start with and why. Wait for my confirmation before
+> opening it.
+
+It proposes a ticket to begin with and — once you confirm — runs the full
+workflow: research, failing tests first, implementation, review, then closing
+the ticket. Every later chat works the same way.
+
+---
+
 ## Prerequisites
 
 You need three things on your machine:
 
-- **Node.js 20 or newer.** Check with `node --version`. If you do not have it,
-  grab the LTS installer from <https://nodejs.org>.
-- **git.** Check with `git --version`. macOS and most Linux distros ship it;
-  on Windows install Git for Windows from <https://git-scm.com>.
-- **Claude Code.** The CLI that hosts the chat that drives this framework.
-  Install instructions live at <https://docs.claude.com/claude-code>.
+- **Node.js 20 or newer** (`node --version`) — LTS installer at
+  <https://nodejs.org>.
+- **git** (`git --version`) — on Windows, Git for Windows from
+  <https://git-scm.com>.
+- **Claude Code**, the CLI that hosts the chat that drives this framework —
+  install instructions at <https://docs.claude.com/claude-code>.
 
-No global npm packages, no Docker, no databases. The framework is plain
-JavaScript files plus a small JSON state directory.
+No global npm packages, no Docker, no databases — just plain JavaScript files
+and a small JSON state directory.
 
 ---
 
@@ -62,71 +124,32 @@ questions — project name, what kind of project it is (web app, CLI tool, or
 library), who it is for, the top use cases, and the stack you want to build
 on. The wizard takes maybe two minutes.
 
-If you cloned this repository directly (rather than from a fresh template),
-`node bin/init.js` will first notice the framework's own historical tickets
-sitting under `tasks/` and offer to move them out of the way so your project
-starts with an empty backlog. Press Enter to accept; that is the default and
-the right answer for a brand-new project.
+If you cloned this repository directly, `node bin/init.js` will notice the
+framework's own historical tickets under `tasks/` and offer to move them out of
+the way so your project starts empty. Press Enter to accept (the default).
 
-If you ever want to re-run the intake from scratch, pass `--force`:
-
-```bash
-node bin/init.js --force
-```
-
-If you want to skip the history archive question entirely (useful when you
-are working on the framework itself rather than building a new project on top
-of it), pass `--no-archive`:
-
-```bash
-node bin/init.js --no-archive
-```
+Two flags help in edge cases: `node bin/init.js --force` re-runs the intake from
+scratch, and `node bin/init.js --no-archive` skips the history-archive question
+(useful when working on the framework itself).
 
 ---
 
 ## What the wizard produces
 
-When the wizard finishes you will see three new things in the repository:
+Whether you ran `/agentic-framework:init-project` or `node bin/init.js`, the
+wizard writes the same things into your project:
 
-1. **`PROJECT.md`** at the repo root. A short, human-readable summary of the
-   project — its name, type, primary use cases, target users, and stack. The
-   orchestrator reads this on every chat to know what you are building.
-2. **`.claude/agents/project-context.md`**. A briefing the helpers read so
-   they share the same picture of the project. You do not need to read this
-   yourself.
-3. **A small starter backlog** under `tasks/`. The wizard mints a handful of
-   day-one tickets — things like "set up project CI" and use-case-specific
-   starters — so you have something concrete to point Claude Code at on your
-   very first chat.
+1. **`PROJECT.md`** — a short summary of the project (name, type, use cases,
+   target users, stack). The orchestrator reads it on every chat.
+2. **`.claude/agents/project-context.md`** — a briefing the helpers share. You
+   do not need to read it yourself.
+3. **A small starter backlog** under `tasks/` — a handful of day-one tickets so
+   you have something concrete to point Claude Code at first.
 
-You will also see a `state/` directory. That is where the framework remembers
-what it was doing between chats. Leave it alone; it heals itself.
-
----
-
-## Your first chat with Claude Code
-
-From the project directory, start Claude Code:
-
-```bash
-claude
-```
-
-For the first message, copy and paste this:
-
-> Read `PROJECT.md` and the `tasks/` directory. Tell me which seeded ticket
-> you would like to start with and why. Wait for my confirmation before
-> opening it.
-
-Claude will read the project briefing, scan the starter backlog, and propose
-which ticket to pick up first. Confirm, push back, or steer it to a different
-ticket — you are in charge. Once you confirm, the orchestrator takes over and
-runs the workflow end to end: research, failing tests, implementation, review,
-then ticket close.
-
-For every subsequent chat the same pattern holds — open Claude Code in the
-project directory and tell it what you want. It will pick up where the last
-chat left off automatically.
+You will also see a `state/` directory where the framework remembers what it was
+doing between chats — leave it alone; it heals itself. Then start your first chat
+exactly as in *Step 4* above (open Claude Code in the project folder and paste
+the first-message prompt). Every later chat works the same way.
 
 ---
 
@@ -134,46 +157,41 @@ chat left off automatically.
 
 A few things you will want to know as you go:
 
-- **See open tickets**: open `tasks/` in your editor or ask the chat to list
-  them.
-- **File a new ticket from the terminal**: `node bin/new-task.js` walks you
-  through it interactively, or pass everything as flags
-  (`--title`, `--description`, `--ac`, `--priority`).
-- **Pause a session**: tell the chat "let's pause for the day." The framework
-  will write a handoff note so the next chat resumes cleanly.
+- **See open tickets**: open `tasks/` or ask the chat to list them.
+- **File a new ticket**: `node bin/new-task.js` walks you through it, or pass
+  flags (`--title`, `--description`, `--ac`, `--priority`).
+- **Pause a session**: tell the chat "let's pause for the day" — it writes a
+  handoff note so the next chat resumes cleanly.
 - **Read the long-form rules**: `CLAUDE.md` at the repo root captures the
-  team-wide operating principles. The orchestrator reads it at the start of
-  every chat; you can too if you are curious.
+  team-wide operating principles.
 
 ---
 
 ## Preparing a distribution
 
-If you maintain the framework itself and want to hand someone a clean,
-clone-ready copy (rather than your working repo with its own tickets and
-session history baked in), run the template-prep step before publishing:
+If you maintain the framework and want to hand someone a clean, clone-ready copy
+(not your working repo with its own tickets and session history), run the
+template-prep step before publishing:
 
 ```bash
 node bin/make-template.js --yes
 ```
 
-Without `--yes` it is a dry run: it prints exactly what it would remove or
-rewrite and changes nothing. With `--yes` it clears out the framework's own
-tickets and any leftover session state so the next person starts from a blank
-backlog, while leaving the reusable parts (the helper definitions and the
-`knowledge/` library) in place.
+Without `--yes` it is a dry run that prints what it would change and touches
+nothing. With `--yes` it clears the framework's own tickets and leftover session
+state so the next person starts from a blank backlog, while keeping the reusable
+parts (helper definitions and the `knowledge/` library).
 
-Whoever clones the result must run `npm install` once before
-`node bin/init.js` — the intake wizard depends on packages (such as the JSON
-schema validator) that are not vendored into the repository.
+Whoever clones the result must run `npm install` once before `node bin/init.js`
+— the intake wizard depends on packages (such as the JSON schema validator) not
+vendored into the repository.
 
 ---
 
 ## Getting help
 
-If `node bin/init.js` fails or any chat goes off the rails, the most useful
-thing you can do is tell Claude Code what you tried and paste the exact error
-message. The orchestrator is trained to triage its own framework and will
-usually point you at the underlying problem in one or two turns.
+If `node bin/init.js` fails or any chat goes off the rails, tell Claude Code
+what you tried and paste the exact error message. The orchestrator is trained to
+triage its own framework and usually points you at the problem in a turn or two.
 
 Welcome aboard.
