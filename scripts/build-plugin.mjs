@@ -11,7 +11,10 @@
 //
 // The bundles are the SHIPPED entrypoints (see .claude-plugin/shipped-bin.json);
 // bin/*.js + src/* remain the dev/test sources (`npm test` runs against src/).
-// The MCP-server bundle is deferred to P6.
+// TASK-026 P6 added the third entry: src/mcp-server.js -> dist/mcp-server.cjs,
+// which inlines @modelcontextprotocol/sdk + zod (both devDependencies) so the
+// shipped MCP server resolves nothing at runtime. It carries NO shebang (it is
+// invoked as `node dist/mcp-server.cjs` from .mcp.json, not as a bin/*).
 //
 // NO banner: bin/init.js and bin/new-task.js already carry a
 // `#!/usr/bin/env node` shebang and esbuild preserves it. Adding a banner.js
@@ -27,10 +30,12 @@ const __dir = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dir, '..');
 const OUT_DIR = join(REPO_ROOT, 'dist');
 
-// Entrypoint -> output bundle. (MCP server added in P6.)
+// Entrypoint -> output bundle.
 const ENTRYPOINTS = [
   { entry: join(REPO_ROOT, 'bin', 'init.js'), outfile: join(OUT_DIR, 'init.cjs') },
   { entry: join(REPO_ROOT, 'bin', 'new-task.js'), outfile: join(OUT_DIR, 'new-task.cjs') },
+  // TASK-026 P6 — the MCP task-store server. Same options; the SDK + zod inline.
+  { entry: join(REPO_ROOT, 'src', 'mcp-server.js'), outfile: join(OUT_DIR, 'mcp-server.cjs') },
 ];
 
 async function main() {

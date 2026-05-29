@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "agentic-framework-tasks": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/mcp-server.cjs"],
+      "env": {
+        "CLAUDE_PROJECT_DIR": "${CLAUDE_PROJECT_DIR}"
+      }
+    }
+  }
+}
