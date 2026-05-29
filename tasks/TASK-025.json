@@ -8,10 +8,10 @@
     "An always-on routing backstop skill ships (skills/orchestrator-routing/) carrying the RESUME-FIRST sequence; `claude plugin details` shows it in the inventory.",
     "`agents/orchestrator.md` is reconciled to the v2 pointer/bundle model — a grep confirms zero remaining references to the v1 single-file session.json / <updated_at>.json archive scheme, and the agent text matches the contract in CLAUDE.md + state/README.md."
   ],
-  "status": "todo",
+  "status": "in_progress",
   "priority": "high",
   "labels": ["plugin", "distribution", "plugin-chain", "orchestrator"],
-  "assignee": null,
+  "assignee": "developer",
   "depends_on": ["TASK-024"],
   "linked_commits": [],
   "linked_prs": [],

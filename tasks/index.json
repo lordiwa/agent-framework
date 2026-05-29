@@ -136,7 +136,7 @@
     {
       "key": "TASK-025",
       "title": "Plugin chain P5: orchestrator ship + activation (generated project CLAUDE.md + backstop skill + reconcile orchestrator.md)",
-      "status": "todo",
+      "status": "in_progress",
       "priority": "high"
     },
     {
