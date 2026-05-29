@@ -8,21 +8,26 @@
     "Re-run is idempotent: an already-initialized project is not clobbered (honors the existing PROJECT.md guard and the seed-label backlog guard).",
     "End-to-end: install the plugin into a FRESH empty temp project, run init-project, and assert every artifact lands in the temp project dir — and that the plugin cache dir is NOT mutated."
   ],
-  "status": "in_progress",
+  "status": "done",
   "priority": "high",
   "labels": ["plugin", "distribution", "plugin-chain", "intake"],
   "assignee": "developer",
   "depends_on": ["TASK-022", "TASK-023"],
-  "linked_commits": [],
+  "linked_commits": ["de5c58f", "46a8478"],
   "linked_prs": [],
   "comments": [
     {
       "author": "orchestrator",
       "at": "2026-05-28T22:40:00Z",
       "body": "Minted from TASK-020 spike §F (P4) + §C/§D.5. Depends on P2 (project-root binding) and P3 (dep resolution) since the wizard runs task-store/seeder on the user machine. CLAUDE.md routing generation is split out into P5."
+    },
+    {
+      "author": "orchestrator",
+      "at": "2026-05-29T04:10:00Z",
+      "body": "CLOSED APPROVE-WITH-FOLLOWUPS (auto-close per standing plugin-chain authorization — green review, 0 HIGH / 0 MEDIUM). Tests-first de5c58f; impl 46a8478. Reviewer (fresh context): 0 HIGH / 0 MEDIUM / 1 LOW / 1 NIT, full suite 270 passed / 2 skipped DETERMINISTIC across two clean runs, dist/init.cjs rebuild diff empty (committed bundle == fresh build), exactly one shebang. Mechanism delivered: runInit gained an optional `answers` object that bypasses runQuestionnaire entirely (prompter never called) and materializes straight from writeProjectMd + generateProjectContext + seedBacklog; CLI gained `--answers-file <path>` (value-consuming flag, friendly exit-1 on JSON parse failure via printFriendlyError); archive prompt skipped in answers-mode (no-TTY safe); validateSuppliedAnswers gates on project_name+project_type up front so malformed answers error cleanly rather than half-materializing. New plugin component commands/init-project.md (auto-discovered at plugin root; frontmatter description; body invokes `node ${CLAUDE_PLUGIN_ROOT}/dist/init.cjs --answers-file <tmp>`). AC1/AC3/AC4 fully met for the automatable invariant; idempotency verified (already_initialized short-circuits even with answers supplied, no clobber, no duplicate backlog). LOW (resumed-branch archive-skip asymmetry is implicit — add a 'no archive prompt by design' comment) + NIT (type-specific answer keys advisory, not validated) deferred without a follow-up ticket per chain close pattern. OPERATIONAL FOLLOW-UP (not a code defect, does not block close): the §D.5 live `claude plugin details` registration proof + AC4 fresh-install cache-not-mutated assertion are the deliberately-skipped manual CLI sensor (it.skip) — same pattern as TASK-021 scaffold; run at install time. Punch list noted by dev: `--help` falls through to interactive wizard instead of printing usage (pre-existing, untouched)."
     }
   ],
   "created_at": "2026-05-28T22:40:00Z",
-  "updated_at": "2026-05-28T22:40:00Z",
+  "updated_at": "2026-05-29T04:10:00Z",
   "jira_key": null
 }

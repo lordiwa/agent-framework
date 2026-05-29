@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-29T03:05:00Z",
+  "generated_at": "2026-05-29T04:10:00Z",
   "tasks": [
     {
       "key": "TASK-001",
@@ -130,7 +130,7 @@
     {
       "key": "TASK-024",
       "title": "Plugin chain P4: /init-project bootstrap slash command",
-      "status": "in_progress",
+      "status": "done",
       "priority": "high"
     },
     {
