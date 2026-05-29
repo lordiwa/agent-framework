@@ -1,0 +1,108 @@
+// tests/orchestrator-routing-skill.spec.js
+// TASK-025 — Plugin chain P5: the always-on backstop routing skill (AC3).
+//
+// The "installed but not yet init-ed, fresh chat" gap: a plugin-root CLAUDE.md
+// is NOT loaded, and /init-project may not have run, so the orchestrator's
+// RESUME-FIRST contract would be invisible. A plugin SKILL ships at
+// skills/orchestrator-routing/SKILL.md with a description worded to be
+// ALWAYS-relevant, so progressive disclosure loads it and the RESUME-FIRST
+// sequence is reachable in any chat.
+//
+// SKILLS PARITY FINDING (documented for the impl phase):
+//   The established pattern for the repo-local skill (tech-training-template)
+//   ships it in BOTH skills/ (plugin root) and .claude/skills/ (live dev). The
+//   two SKILL.md files are byte-identical TODAY; .claude/skills/ additionally
+//   carries an (empty) references/ subdir, so the dir TREES differ but the
+//   SKILL.md bytes match. There is currently NO skills-parity drift-guard spec
+//   (unlike agents). To match the established mirror pattern, this skill must
+//   ship in BOTH locations with byte-identical SKILL.md. This spec encodes that
+//   parity at the SKILL.md-bytes level (the dimension that actually matters for
+//   load behavior), mirroring tests/agents-parity.spec.js.
+//
+// TESTS-FIRST: neither SKILL.md exists yet, so the existence + frontmatter +
+// body-phrase + parity assertions FAIL for the RIGHT reason (file absent).
+
+import { describe, it, expect } from 'vitest';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { REPO_ROOT } from './helpers/repoRoot.js';
+
+const SKILL_REL = join('orchestrator-routing', 'SKILL.md');
+const PLUGIN_SKILL = join(REPO_ROOT, 'skills', SKILL_REL);
+const DEV_SKILL = join(REPO_ROOT, '.claude', 'skills', SKILL_REL);
+
+/** Parse the frontmatter block (text between the first two `---` fences). */
+function frontmatterOf(mdText) {
+  const m = mdText.match(/^---\s*\n([\s\S]*?)\n---\s*(\n|$)/);
+  return m ? m[1] : '';
+}
+
+describe('AC3 — orchestrator-routing backstop skill ships at the plugin root', () => {
+  it('skill_file_exists', () => {
+    expect(
+      existsSync(PLUGIN_SKILL),
+      'skills/orchestrator-routing/SKILL.md must exist (the always-on backstop)',
+    ).toBe(true);
+  });
+
+  it('skill_opens_with_frontmatter_carrying_name_and_description', () => {
+    expect(existsSync(PLUGIN_SKILL)).toBe(true);
+    const text = readFileSync(PLUGIN_SKILL, 'utf8');
+    const fm = frontmatterOf(text);
+    expect(fm.length, 'skill must open with a --- frontmatter block').toBeGreaterThan(0);
+    expect(/^name:\s*\S+/m.test(fm), 'frontmatter must carry a non-empty name:').toBe(true);
+    expect(
+      /^description:\s*\S+/m.test(fm),
+      'frontmatter must carry a non-empty description:',
+    ).toBe(true);
+  });
+
+  it('skill_description_is_worded_to_be_always_relevant', () => {
+    // The whole point of a BACKSTOP is that progressive disclosure loads it in
+    // ANY orchestrator chat — especially the "installed but not init-ed" one. So
+    // the description must signal always-on/session-start relevance, not a
+    // narrow file-type trigger.
+    const text = readFileSync(PLUGIN_SKILL, 'utf8');
+    const fm = frontmatterOf(text);
+    const descLine = (fm.match(/^description:\s*(.+)$/m) || [, ''])[1];
+    expect(descLine.length).toBeGreaterThan(20);
+    expect(
+      /(always|every|any|start of (a |every )?(chat|session)|new chat|new session|orchestrat)/i.test(descLine),
+      'description must read as always-relevant (always / every chat / session start / orchestrator)',
+    ).toBe(true);
+  });
+
+  it('skill_body_carries_the_resume_first_sequence_v2', () => {
+    const text = readFileSync(PLUGIN_SKILL, 'utf8');
+    // Key phrases of the RESUME-FIRST four-step, v2 pointer/bundle model.
+    expect(/RESUME[- ]FIRST/i.test(text)).toBe(true);
+    expect(text.includes('state/session.json')).toBe(true);
+    expect(text.includes('active_session_id')).toBe(true);
+    expect(/state\/sessions\//.test(text)).toBe(true);
+    // First-chat routing rule (PROJECT.md absent → init).
+    expect(text.includes('PROJECT.md')).toBe(true);
+    // Must NOT carry the v1 archive scheme.
+    expect(/<updated_at>\.json/.test(text)).toBe(false);
+  });
+});
+
+describe('AC3 — backstop skill is mirrored into .claude/skills (parity)', () => {
+  it('dev_copy_exists', () => {
+    expect(
+      existsSync(DEV_SKILL),
+      '.claude/skills/orchestrator-routing/SKILL.md must mirror the plugin copy',
+    ).toBe(true);
+  });
+
+  it('plugin_and_dev_skill_md_are_byte_identical', () => {
+    expect(existsSync(PLUGIN_SKILL), 'plugin skill must exist').toBe(true);
+    expect(existsSync(DEV_SKILL), 'dev skill must exist').toBe(true);
+    const pluginBytes = readFileSync(PLUGIN_SKILL);
+    const devBytes = readFileSync(DEV_SKILL);
+    expect(
+      pluginBytes.equals(devBytes),
+      'skills/orchestrator-routing/SKILL.md must be byte-identical to the .claude/skills copy',
+    ).toBe(true);
+  });
+});
